@@ -1,0 +1,28 @@
+id = "org.ljnljn.database-config"
+name = "数据库配置文件"
+version = "0.1.0"
+protocol = 2
+library = "ljnljn_database_config"
+memory = "512MiB"
+permissions = []
+
+[[analyzer]]
+id = "db_config_files"
+name = "数据库配置文件（单文件）"
+scope = "files"
+trigger = "manual"
+category = "config"
+
+[[analyzer]]
+id = "db_config_system"
+name = "数据库配置（系统）"
+scope = "system"
+trigger = "manual"
+category = "config"
+
+[[analyzer]]
+id = "db_config_evidence"
+name = "数据库配置（检材）"
+scope = "evidence"
+trigger = "manual"
+category = "config"

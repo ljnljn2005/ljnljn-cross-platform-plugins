@@ -1,0 +1,218 @@
+{
+  "protocol": 2,
+  "plugin": "org.ljnljn.database-config",
+  "sdk": "0.2.0",
+  "analyzers": [
+    "db_config_files",
+    "db_config_system",
+    "db_config_evidence"
+  ],
+  "filesystems": [],
+  "records": [
+    {
+      "type": "profile.fact",
+      "label": "检材画像",
+      "title": "{key}",
+      "fields": [
+        {
+          "id": "key",
+          "label": "键",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "value",
+          "label": "值",
+          "kind": "json"
+        },
+        {
+          "id": "system",
+          "label": "系统",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "database.config.file",
+      "label": "数据库配置文件",
+      "title": "{product} / {path}",
+      "fields": [
+        {
+          "id": "path",
+          "label": "路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "product",
+          "label": "产品",
+          "kind": "text"
+        },
+        {
+          "id": "format",
+          "label": "格式",
+          "kind": "text"
+        },
+        {
+          "id": "size",
+          "label": "大小",
+          "kind": "size"
+        },
+        {
+          "id": "setting_count",
+          "label": "配置项数",
+          "kind": "int"
+        },
+        {
+          "id": "credential_count",
+          "label": "凭据数",
+          "kind": "int"
+        },
+        {
+          "id": "status",
+          "label": "状态",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "database.config.setting",
+      "label": "数据库配置项",
+      "title": "{section}: {key}",
+      "fields": [
+        {
+          "id": "source",
+          "label": "来源文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "line",
+          "label": "行号",
+          "kind": "int",
+          "key": true
+        },
+        {
+          "id": "product",
+          "label": "产品",
+          "kind": "text"
+        },
+        {
+          "id": "section",
+          "label": "段",
+          "kind": "text"
+        },
+        {
+          "id": "key",
+          "label": "键",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "value",
+          "label": "值",
+          "kind": "text"
+        },
+        {
+          "id": "secret",
+          "label": "是否为敏感项",
+          "kind": "bool"
+        }
+      ]
+    },
+    {
+      "type": "database.config.credential",
+      "label": "数据库凭据",
+      "title": "{product} / {user}",
+      "fields": [
+        {
+          "id": "source",
+          "label": "来源文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "line",
+          "label": "行号",
+          "kind": "int",
+          "key": true
+        },
+        {
+          "id": "product",
+          "label": "产品",
+          "kind": "text"
+        },
+        {
+          "id": "user",
+          "label": "用户",
+          "kind": "text"
+        },
+        {
+          "id": "kind",
+          "label": "凭据类型",
+          "kind": "text"
+        },
+        {
+          "id": "value",
+          "label": "凭据值",
+          "kind": "text"
+        },
+        {
+          "id": "context",
+          "label": "上下文",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "database.pg_hba.rule",
+      "label": "PostgreSQL pg_hba 规则",
+      "title": "{type} {database} {db_user} {method}",
+      "fields": [
+        {
+          "id": "source",
+          "label": "来源文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "line",
+          "label": "行号",
+          "kind": "int",
+          "key": true
+        },
+        {
+          "id": "type",
+          "label": "连接类型",
+          "kind": "text"
+        },
+        {
+          "id": "database",
+          "label": "数据库",
+          "kind": "text"
+        },
+        {
+          "id": "db_user",
+          "label": "用户",
+          "kind": "text"
+        },
+        {
+          "id": "address",
+          "label": "地址",
+          "kind": "text"
+        },
+        {
+          "id": "method",
+          "label": "认证方法",
+          "kind": "text"
+        },
+        {
+          "id": "options",
+          "label": "选项",
+          "kind": "text"
+        }
+      ]
+    }
+  ],
+  "schema_hash": "fnv1a64:00c7b23ad741e3ef"
+}

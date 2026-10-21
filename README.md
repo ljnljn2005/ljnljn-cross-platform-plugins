@@ -9,6 +9,7 @@
 | `ljnljn-weblog-sqli` | v2 | Web 访问日志 sqlmap 注入参数定位 |
 | `ljnljn-ewf-header` | v2 | EWF/E01 头部与节段元数据 |
 | `ljnljn-sqlcipher-profile` | v2 | SQLCipher 4 头画像与单页 HMAC 试校验 |
+| `ljnljn-database-config` | v2 | MySQL/PostgreSQL/Redis/MongoDB/MSSQL/Oracle/Elasticsearch 配置文件与凭据 |
 
 每个插件是独立 Cargo 工程，仓库根目录提供共享 SDK v2：
 
