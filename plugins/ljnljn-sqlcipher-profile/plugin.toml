@@ -1,0 +1,28 @@
+id = "org.ljnljn.sqlcipher-profile"
+name = "SQLCipher 文件头画像"
+version = "0.1.0"
+protocol_min = 1
+protocol_max = 1
+permissions = ["emit_artifacts"]
+
+# 单文件分析器：ljnljn_kb_sqlcipher_header_profile_1cb485b2.dll / .so。
+# 解析的是不可信检材字节，必须保持默认 isolation = "process"。
+[library]
+path = "ljnljn_kb_sqlcipher_header_profile_1cb485b2"
+isolation = "process"
+
+[task]
+type = "fileanalyzer"
+platform = "all"
+trigger = "manually"
+support = [
+  "明文 SQLite 头识别",
+  "SQLCipher 4 头结构解析",
+  "加密参数画像",
+  "首库页 HMAC 试校验",
+]
+
+[[capabilities]]
+type = "file_analyzer"
+analyzer = "ljnljn.sqlcipher-profile"
+display = "SQLCipher 文件头画像（加密参数与 HMAC 试校验）"

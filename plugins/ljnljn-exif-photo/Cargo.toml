@@ -1,0 +1,33 @@
+[package]
+name = "ljnljn-exif-photo-metadata-8ffbc036"
+version = "0.1.0"
+edition = "2021"
+license = "AGPL-3.0-only"
+description = "LovelyCarve 照片元数据分析器：递归识别照片真实格式并解析 EXIF/GPS，(ljnljn 8ffbc036)"
+publish = false
+
+[lib]
+# cdylib 供 LovelyCarve 宿主加载；rlib 让 `cargo test` 能链接本 crate 的单元测试。
+# 产物基名 ljnljn_kb_exif_photo_metadata_8ffbc036 与 plugin.toml [library].path 一致。
+name = "ljnljn_kb_exif_photo_metadata_8ffbc036"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# 已核实的官方 SDK crate（name = "lovelycarve-plugin"），来自本机既有共享副本
+# workspaces/_plugin-gen/_sdk/sdk（来源与提交见 SDK-SOURCE.json）。
+# 除 SDK 及其传递依赖（rmpv/serde）外不引入第三方 crate。
+lovelycarve-plugin = { path = "../../sdk-v1/sdk" }
+
+[lints.rust]
+# MSVC link.exe 会为每个 DLL 输出 import library 提示。
+linker_messages = "allow"
+
+[lints.clippy]
+uninlined_format_args = "warn"
+
+# 本工程位于插件工作区目录树之内，显式声明自己是独立 workspace 根，
+# 避免被上层未知的 Cargo.toml 意外纳入（共享 SDK 父工作区保持不变）。
+[workspace]
+
+[workspace.package]
+license = "AGPL-3.0-only"

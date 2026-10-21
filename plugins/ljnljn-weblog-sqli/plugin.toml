@@ -1,0 +1,33 @@
+id = "org.ljnljn.weblog-sqli"
+name = "Web访问日志注入参数检测"
+version = "0.1.0"
+protocol_min = 1
+protocol_max = 1
+permissions = ["emit_artifacts"]
+
+[library]
+path = "ljnljn_kb_weblog_sqli_param_detect_30a22be5"
+isolation = "process"
+
+[task]
+type = "baseinfo"
+platform = "all"
+trigger = "manually"
+support = [
+  "Apache/Nginx common/combined 访问日志解析",
+  "query 参数提取与 SQL 注入特征族检测",
+  "按请求窗口聚合可疑参数",
+  "保留来源行号、原始行和原始编码值",
+]
+
+[[capabilities]]
+type = "file_analyzer"
+analyzer = "ljnljn.weblog-sqli.file"
+display = "Web 访问日志注入参数（单文件）"
+extensions = ["log", "txt"]
+priority = 10
+
+[[capabilities]]
+type = "evidence_analyzer"
+analyzer = "ljnljn.weblog-sqli.evidence"
+display = "Web 访问日志注入参数（检材级）"

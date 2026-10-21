@@ -1,0 +1,38 @@
+id = "org.ljnljn.exif-photo"
+name = "照片元数据(EXIF/GPS)"
+version = "0.1.0"
+protocol_min = 1
+protocol_max = 1
+permissions = ["emit_artifacts"]
+
+# ljnljn_kb_exif_photo_metadata_8ffbc036.dll，与本 crate 的 [lib].name 一致。
+# 解析的是不可信检材，保持默认 isolation = "process"。
+[library]
+path = "ljnljn_kb_exif_photo_metadata_8ffbc036"
+isolation = "process"
+
+[task]
+type = "baseinfo"
+platform = "all"
+trigger = "manually"
+support = [
+  "照片目录递归枚举",
+  "真实格式识别(扩展名+魔数)",
+  "EXIF IFD0/ExifIFD/GPS IFD",
+  "PNG eXIf/tEXt/XMP",
+  "经纬度十进制度换算",
+  "汇总统计与失败原因",
+]
+
+# 检材级：对检材内照片目录做递归枚举与 EXIF/GPS 解析（含汇总统计）。
+[[capabilities]]
+type = "evidence_analyzer"
+analyzer = "ljnljn.exif-photo"
+display = "照片元数据(EXIF/GPS)"
+
+# 文件级：对当前选中的单个照片文件解析同一套字段。
+[[capabilities]]
+type = "file_analyzer"
+analyzer = "ljnljn.exif-photo.file"
+display = "照片元数据(单文件)"
+mime_types = ["image/jpeg", "image/png", "image/heic", "image/heif", "application/octet-stream"]

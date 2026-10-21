@@ -1,0 +1,42 @@
+id = "org.ljnljn.xlsx-dedup"
+name = "收件人表去重统计(姓名+电话+地址)"
+version = "0.1.0"
+protocol_min = 1
+protocol_max = 1
+permissions = ["emit_artifacts"]
+
+# ljnljn_kb_sf_xlsx_dedup_count_9756f644.dll / libljnljn_kb_sf_xlsx_dedup_count_9756f644.so
+# 解析不可信检材，保持默认 isolation = "process"（崩溃不会带走主程序）。
+[library]
+path = "ljnljn_kb_sf_xlsx_dedup_count_9756f644"
+isolation = "process"
+
+[task]
+type = "analysis"
+platform = "all"
+trigger = "manually"
+support = [
+  "xlsx 工作表枚举",
+  "表头识别(中英文别名/列序回退)",
+  "zip 内 xlsx 展开",
+  "单元格值规范化(全角转半角/空白/电话/地址标点)",
+  "姓名+电话+地址三元组去重计数",
+  "重复组明细与来源文件/行号",
+  "源文件查找(文件名关键词)",
+]
+
+[[capabilities]]
+type = "evidence_analyzer"
+analyzer = "ljnljn.xlsx-dedup.evidence"
+display = "收件人表去重统计"
+
+[[capabilities]]
+type = "file_analyzer"
+analyzer = "ljnljn.xlsx-dedup.file"
+extensions = ["xlsx", "xlsm", "zip"]
+mime_types = [
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel.sheet.macroEnabled.12",
+  "application/zip",
+]
+priority = 50
