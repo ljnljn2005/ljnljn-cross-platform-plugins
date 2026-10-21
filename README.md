@@ -7,7 +7,6 @@
 | --- | --- | --- |
 | `ljnljn-dns-heartbeat` | v2 | classic pcap DNS 心跳周期 |
 | `ljnljn-weblog-sqli` | v2 | Web 访问日志 sqlmap 注入参数定位 |
-| `ljnljn-xlsx-dedup` | v2 | xlsx 按姓名、电话、地址去重统计 |
 | `ljnljn-exif-photo` | v2 | 照片 EXIF/GPS 与真实格式识别 |
 | `ljnljn-ewf-header` | v2 | EWF/E01 头部与节段元数据 |
 | `ljnljn-sqlcipher-profile` | v2 | SQLCipher 4 头画像与单页 HMAC 试校验 |
