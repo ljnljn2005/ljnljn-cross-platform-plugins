@@ -126,17 +126,17 @@ impl PcapEntry {
     fn timestamp(&self) -> (u32, u32) {
         match self {
             Self::Udp(packet) => (packet.ts_sec, packet.ts_frac),
-            Self::RawFrame { ts_sec, ts_frac, .. } => (*ts_sec, *ts_frac),
+            Self::RawFrame {
+                ts_sec, ts_frac, ..
+            } => (*ts_sec, *ts_frac),
         }
     }
 
     fn frame(&self) -> Vec<u8> {
         match self {
-            Self::Udp(packet) => ethernet(&ipv4_udp(
-                packet.src_port,
-                packet.dst_port,
-                &packet.payload,
-            )),
+            Self::Udp(packet) => {
+                ethernet(&ipv4_udp(packet.src_port, packet.dst_port, &packet.payload))
+            }
             Self::RawFrame { frame, .. } => frame.clone(),
         }
     }
@@ -173,7 +173,13 @@ pub fn build_pcap_with_network(entries: &[PcapEntry], network: u32) -> Vec<u8> {
 pub fn pcap_with_queries(queries: &[(f64, &str, u16)]) -> Vec<u8> {
     let entries: Vec<PcapEntry> = queries
         .iter()
-        .map(|(epoch, name, qtype)| PcapEntry::Udp(UdpPacket::to_dns(epoch_sec(*epoch), frac_of(*epoch), dns_query_name(name, *qtype))))
+        .map(|(epoch, name, qtype)| {
+            PcapEntry::Udp(UdpPacket::to_dns(
+                epoch_sec(*epoch),
+                frac_of(*epoch),
+                dns_query_name(name, *qtype),
+            ))
+        })
         .collect();
     build_pcap(&entries)
 }

@@ -278,7 +278,9 @@ pub fn parse_header(window: &[u8], file_len: u64, options: &Options) -> Profile 
     let salt = &window[..16];
     let page_size_raw = u16::from_be_bytes([window[16], window[17]]);
     let page_size = match (options.page_size_override, valid_page_size(page_size_raw)) {
-        (Some(override_size), _) if valid_page_size(override_size as u16) == Some(override_size) => {
+        (Some(override_size), _)
+            if valid_page_size(override_size as u16) == Some(override_size) =>
+        {
             Some(override_size)
         }
         (Some(_), _) => {
@@ -443,9 +445,9 @@ pub fn parse_header(window: &[u8], file_len: u64, options: &Options) -> Profile 
 
 fn plaintext_note(window: &[u8]) -> String {
     match plaintext_page_size(window) {
-        Some(size) => format!(
-            "明文页大小字段 [0x10..0x12) = {size}（仅作说明，不做加密参数推断）。"
-        ),
+        Some(size) => {
+            format!("明文页大小字段 [0x10..0x12) = {size}（仅作说明，不做加密参数推断）。")
+        }
         None => "明文页大小字段不可解释（文件短于 18 字节）。".to_string(),
     }
 }
@@ -798,40 +800,6 @@ pub fn build_synthetic(params: &SyntheticParams) -> Vec<u8> {
 }
 
 #[cfg(test)]
-mod diag_tmp {
-    use super::*;
-    #[test]
-    fn compare() {
-        let params = SyntheticParams::default();
-        let bytes = build_synthetic(&params);
-        let raw = pbkdf2(DEFAULT_HMAC, params.passphrase.as_bytes(), &params.salt, params.kdf_iter, 32);
-        let mut rk = [0u8; 32];
-        rk.copy_from_slice(&raw[..32]);
-        let key = page_key(DEFAULT_HMAC, &rk, PAGE_NO_FIRST);
-        let data = &bytes[..1024 - 48];
-        let mac = HmacKey::new(DEFAULT_HMAC, &key).digest(data);
-        eprintln!("synthetic stored={}", hex::encode(&bytes[1024-64..1024]));
-        eprintln!("direct computed   ={}", hex::encode(&mac));
-        eprintln!("direct key_prefix ={}", hex::prefix(&key, 8));
-        eprintln!("file_len={} bytes_read={}", bytes.len(), data.len());
-
-        // 从校验路径出发，看它算出的值
-        let mut options = Options::profile_only();
-        options.passphrase = Some(params.passphrase.clone());
-        let mut profile = parse_header(&bytes, bytes.len() as u64, &options);
-        eprintln!("parsed salt={:?} ps={:?} reserve={:?} kind={:?}",
-            profile.salt_hex, profile.page_size, profile.reserve_size, profile.header_kind);
-        let plan = page_plan(&profile, &options).expect("plan");
-        eprintln!("plan hmac_offset={} salt={}", plan.hmac_offset, hex::encode(&plan.salt));
-        verify_page(&mut profile, &options, &plan, PageBytes { page: &bytes[..1024], requested: 1024 });
-        for a in &profile.attempts {
-            eprintln!("attempt iter={} key_prefix={} computed={} stored={}",
-                a.kdf_iterations, a.derived_key_prefix_hex, a.computed_hmac_hex, a.stored_hmac_hex);
-        }
-    }
-}
-
-#[cfg(test)]
 mod tests {
     use super::*;
 
@@ -862,7 +830,10 @@ mod tests {
         let empty = profile_of(&[]);
         assert_eq!(empty.header_kind, HeaderKind::Unknown);
         assert_eq!(empty.window_len, 0);
-        assert!(empty.limitations.iter().any(|item| item.contains("短于 16 字节")));
+        assert!(empty
+            .limitations
+            .iter()
+            .any(|item| item.contains("短于 16 字节")));
 
         let three = profile_of(&[0xde, 0xad, 0xbe]);
         assert_eq!(three.header_kind, HeaderKind::Unknown);
@@ -922,7 +893,10 @@ mod tests {
         let bytes = build_synthetic(&SyntheticParams::default());
         let profile = profile_of(&bytes);
         assert_eq!(profile.header_kind, HeaderKind::EncryptedSqliteLikely);
-        assert_eq!(profile.salt_hex.as_deref(), Some("53514c43697068657253796e74683031"));
+        assert_eq!(
+            profile.salt_hex.as_deref(),
+            Some("53514c43697068657253796e74683031")
+        );
         assert_eq!(profile.page_size, Some(1024));
         assert_eq!(profile.reserve_size, Some(48));
         assert_eq!(profile.kdf_iter, DEFAULT_KDF_ITER);
@@ -999,7 +973,10 @@ mod tests {
             },
         );
         assert_eq!(outcome, KeyCheck::Failed);
-        assert!(profile.limitations.iter().any(|item| item.contains("读取不完整")));
+        assert!(profile
+            .limitations
+            .iter()
+            .any(|item| item.contains("读取不完整")));
     }
 
     #[test]
@@ -1014,7 +991,10 @@ mod tests {
         assert_eq!(profile.reserve_size, Some(16));
         // 16 字节 reserve 低于 SQLCipher 4 的合法区间（32..=64），头部判定不成立，
         // 不应进入单页 HMAC 校验，更不能把它当作可通过的布局。
-        assert!(profile.checks.iter().any(|check| check.name == "reserve_size_range" && !check.passed));
+        assert!(profile
+            .checks
+            .iter()
+            .any(|check| check.name == "reserve_size_range" && !check.passed));
         assert!(page_plan(&profile, &options).is_none());
     }
 

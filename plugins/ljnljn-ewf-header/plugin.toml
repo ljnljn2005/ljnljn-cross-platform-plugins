@@ -1,34 +1,18 @@
+# LPP v2 package manifest. Labels are the Chinese defaults; translations live
+# in locales/<locale>.toml under stable keys.
 id = "org.ljnljn.ewf-header"
 name = "EWF/E01 头部元数据"
 version = "0.1.0"
-protocol_min = 1
-protocol_max = 1
-permissions = ["emit_artifacts"]
+protocol = 2
+library = "ljnljn_ewf_header"
+memory = "256MiB"
+permissions = []
 
-# 单文件分析器：ljnljn_kb_ewf_header_metadata_3bcc39e8.dll / libljnljn_kb_ewf_header_metadata_3bcc39e8.so。
-# 解析的是不可信检材字节（签名、段号、头部区），必须保持 isolation = "process"。
-[library]
-path = "ljnljn_kb_ewf_header_metadata_3bcc39e8"
-isolation = "process"
-
-# 段文件级分析：对单个 E01/E02/…/Ex01 段文件跑一次；目录/多段一致性由上层
-# 按段文件逐个调度后再比对（见 README「未覆盖部分」）。
-[task]
-type = "baseinfo"
-platform = "all"
-trigger = "manually"
-support = [
-  "EVF 文件签名校验",
-  "EWF1/EWF2/Ex01 格式标识识别",
-  "段号与扩展名序号一致性",
-  "头部区长度/越界校验",
-  "头部区字节区间与 SHA-256",
-  "EWF1 卷头候选值（sectors_per_chunk/sector_size/sector_count/compression）",
-  "头部区节段表与 done 标记",
-]
-
-[[capabilities]]
-type = "file_analyzer"
-analyzer = "ljnljn.ewf-header"
-extensions = ["E01", "E02", "E03", "E04", "E05", "E06", "E07", "E08", "E09", "E10", "e01", "e02", "e03", "e04", "e05", "e06", "e07", "e08", "e09", "e10", "Ex01", "ex01"]
-display = "EWF/E01 头部元数据（段级头部识别与结构摘要）"
+# 段级头部元数据：只解析文件头与有界节段窗口，不解压 chunk、不计算流哈希。
+[[analyzer]]
+id = "ewf_header"
+name = "EWF/E01 头部元数据（段级）"
+scope = "files"
+extensions = ["e01", "ewf"]
+trigger = "manual"
+category = "disk"

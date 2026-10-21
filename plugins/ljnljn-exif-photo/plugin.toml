@@ -1,38 +1,55 @@
+# LPP v2 package manifest. Labels are the Chinese defaults; translations live
+# in locales/<locale>.toml under stable keys.
 id = "org.ljnljn.exif-photo"
 name = "照片元数据(EXIF/GPS)"
 version = "0.1.0"
-protocol_min = 1
-protocol_max = 1
-permissions = ["emit_artifacts"]
+protocol = 2
+library = "ljnljn_exif_photo"
+memory = "1GiB"
+permissions = []
 
-# ljnljn_kb_exif_photo_metadata_8ffbc036.dll，与本 crate 的 [lib].name 一致。
-# 解析的是不可信检材，保持默认 isolation = "process"。
-[library]
-path = "ljnljn_kb_exif_photo_metadata_8ffbc036"
-isolation = "process"
-
-[task]
-type = "baseinfo"
-platform = "all"
-trigger = "manually"
-support = [
-  "照片目录递归枚举",
-  "真实格式识别(扩展名+魔数)",
-  "EXIF IFD0/ExifIFD/GPS IFD",
-  "PNG eXIf/tEXt/XMP",
-  "经纬度十进制度换算",
-  "汇总统计与失败原因",
+[[analyzer]]
+id = "exif_files"
+name = "照片元数据（选中文件）"
+scope = "files"
+extensions = ["jpg", "jpeg", "png", "heic", "heif"]
+mime_types = [
+  "image/jpeg",
+  "image/png",
+  "image/heic",
+  "image/heif",
+  "application/octet-stream",
 ]
+trigger = "manual"
+category = "photo"
 
-# 检材级：对检材内照片目录做递归枚举与 EXIF/GPS 解析（含汇总统计）。
-[[capabilities]]
-type = "evidence_analyzer"
-analyzer = "ljnljn.exif-photo"
-display = "照片元数据(EXIF/GPS)"
+[[analyzer.option]]
+id = "include_no_exif"
+type = "flag"
+label = "保留无 EXIF 的照片记录"
+default = true
 
-# 文件级：对当前选中的单个照片文件解析同一套字段。
-[[capabilities]]
-type = "file_analyzer"
-analyzer = "ljnljn.exif-photo.file"
-display = "照片元数据(单文件)"
-mime_types = ["image/jpeg", "image/png", "image/heic", "image/heif", "application/octet-stream"]
+[[analyzer.option]]
+id = "max_files"
+type = "text"
+label = "最多解析照片数（1-20000）"
+default = "5000"
+
+[[analyzer]]
+id = "exif_evidence"
+name = "照片元数据（遍历检材）"
+scope = "evidence"
+trigger = "manual"
+category = "photo"
+
+[[analyzer.option]]
+id = "include_no_exif"
+type = "flag"
+label = "保留无 EXIF 的照片记录"
+default = true
+
+[[analyzer.option]]
+id = "max_files"
+type = "text"
+label = "最多解析照片数（1-20000）"
+default = "5000"

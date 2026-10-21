@@ -1,0 +1,360 @@
+{
+  "protocol": 2,
+  "plugin": "org.ljnljn.sqlcipher-profile",
+  "sdk": "0.2.0",
+  "analyzers": [
+    "sqlcipher_header"
+  ],
+  "filesystems": [],
+  "records": [
+    {
+      "type": "profile.fact",
+      "label": "检材画像",
+      "title": "{key}",
+      "fields": [
+        {
+          "id": "key",
+          "label": "键",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "value",
+          "label": "值",
+          "kind": "json"
+        },
+        {
+          "id": "system",
+          "label": "系统",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "sqlcipher.profile",
+      "label": "SQLCipher 文件头画像",
+      "title": "{path}",
+      "fields": [
+        {
+          "id": "path",
+          "label": "源文件路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "name",
+          "label": "文件名",
+          "kind": "text"
+        },
+        {
+          "id": "file_length",
+          "label": "文件长度",
+          "kind": "size"
+        },
+        {
+          "id": "header_kind",
+          "label": "头部判定",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "plaintext_sqlite",
+              "label": "明文 SQLite"
+            },
+            {
+              "id": "encrypted_sqlite_likely",
+              "label": "疑似 SQLCipher 加密"
+            },
+            {
+              "id": "unknown",
+              "label": "未知"
+            }
+          ]
+        },
+        {
+          "id": "salt_hex",
+          "label": "salt（hex）",
+          "kind": "hash"
+        },
+        {
+          "id": "page_size_raw",
+          "label": "页大小原值",
+          "kind": "int"
+        },
+        {
+          "id": "page_size",
+          "label": "页大小",
+          "kind": "int"
+        },
+        {
+          "id": "write_version",
+          "label": "写版本",
+          "kind": "int"
+        },
+        {
+          "id": "read_version",
+          "label": "读版本",
+          "kind": "int"
+        },
+        {
+          "id": "reserve_size",
+          "label": "reserve 字节数",
+          "kind": "int"
+        },
+        {
+          "id": "payload_fraction",
+          "label": "payload 分数",
+          "kind": "int"
+        },
+        {
+          "id": "file_format_read",
+          "label": "文件格式读版本",
+          "kind": "int"
+        },
+        {
+          "id": "file_format_write",
+          "label": "文件格式写版本",
+          "kind": "int"
+        },
+        {
+          "id": "file_change_counter",
+          "label": "文件修改计数",
+          "kind": "int"
+        },
+        {
+          "id": "kdf_iter",
+          "label": "KDF 迭代次数",
+          "kind": "int"
+        },
+        {
+          "id": "hmac_algorithm",
+          "label": "HMAC 算法",
+          "kind": "text"
+        },
+        {
+          "id": "key_check",
+          "label": "密钥校验",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "not_attempted",
+              "label": "未试校验"
+            },
+            {
+              "id": "passed",
+              "label": "通过"
+            },
+            {
+              "id": "failed",
+              "label": "不通过"
+            }
+          ]
+        },
+        {
+          "id": "verdict_basis",
+          "label": "判定依据",
+          "kind": "text"
+        },
+        {
+          "id": "checks_passed",
+          "label": "通过的结构检查数",
+          "kind": "int"
+        },
+        {
+          "id": "checks_total",
+          "label": "结构检查总数",
+          "kind": "int"
+        },
+        {
+          "id": "page_hmac_offset",
+          "label": "页尾 HMAC 偏移",
+          "kind": "size"
+        },
+        {
+          "id": "stored_page_hmac_hex",
+          "label": "页尾存储的 HMAC（hex）",
+          "kind": "hash"
+        },
+        {
+          "id": "page_read_offset",
+          "label": "第一页偏移",
+          "kind": "size"
+        },
+        {
+          "id": "page_read_requested",
+          "label": "第一页请求字节数",
+          "kind": "size"
+        },
+        {
+          "id": "page_read_received",
+          "label": "第一页读到的字节数",
+          "kind": "size"
+        },
+        {
+          "id": "page_read_complete",
+          "label": "第一页读取完整",
+          "kind": "bool"
+        },
+        {
+          "id": "evidence",
+          "label": "取证依据",
+          "kind": "list"
+        },
+        {
+          "id": "limitations",
+          "label": "限制与覆盖说明",
+          "kind": "list"
+        }
+      ]
+    },
+    {
+      "type": "sqlcipher.header_check",
+      "label": "文件头结构检查",
+      "title": "{path} · {name}",
+      "fields": [
+        {
+          "id": "path",
+          "label": "源文件路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "name",
+          "label": "检查项",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "passed",
+          "label": "通过",
+          "kind": "bool"
+        },
+        {
+          "id": "field",
+          "label": "字段/偏移",
+          "kind": "text"
+        },
+        {
+          "id": "observed",
+          "label": "实测值",
+          "kind": "text"
+        },
+        {
+          "id": "expected",
+          "label": "期望",
+          "kind": "text"
+        },
+        {
+          "id": "header_kind",
+          "label": "头部判定",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "sqlcipher.key_attempt",
+      "label": "首库页 HMAC 试校验",
+      "title": "{path} · {key_source}",
+      "fields": [
+        {
+          "id": "path",
+          "label": "源文件路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "key_source",
+          "label": "密钥来源",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "kdf_iterations",
+          "label": "KDF 迭代次数",
+          "kind": "int"
+        },
+        {
+          "id": "hmac_algorithm",
+          "label": "HMAC 算法",
+          "kind": "text"
+        },
+        {
+          "id": "derived_key_prefix_hex",
+          "label": "派生密钥前缀（hex）",
+          "kind": "hash"
+        },
+        {
+          "id": "passed",
+          "label": "通过",
+          "kind": "bool"
+        },
+        {
+          "id": "computed_hmac_hex",
+          "label": "计算出的 HMAC（hex）",
+          "kind": "hash"
+        },
+        {
+          "id": "stored_hmac_hex",
+          "label": "页尾存储的 HMAC（hex）",
+          "kind": "hash"
+        }
+      ]
+    },
+    {
+      "type": "sqlcipher.plaintext_sqlite",
+      "label": "明文 SQLite 文件头",
+      "title": "{path}",
+      "fields": [
+        {
+          "id": "path",
+          "label": "源文件路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "magic",
+          "label": "魔数",
+          "kind": "text"
+        },
+        {
+          "id": "magic_offset",
+          "label": "魔数区间",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "sqlcipher.page_read",
+      "label": "第一页读取记录",
+      "title": "{path}",
+      "fields": [
+        {
+          "id": "path",
+          "label": "源文件路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "page_offset",
+          "label": "页偏移",
+          "kind": "size"
+        },
+        {
+          "id": "requested",
+          "label": "请求字节数",
+          "kind": "size"
+        },
+        {
+          "id": "received",
+          "label": "实读字节数",
+          "kind": "size"
+        },
+        {
+          "id": "complete",
+          "label": "读取完整",
+          "kind": "bool"
+        }
+      ]
+    }
+  ],
+  "schema_hash": "fnv1a64:4c189c19a9249a2e"
+}

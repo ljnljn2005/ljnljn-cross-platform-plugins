@@ -147,7 +147,13 @@ mod tests {
             ])
         );
         assert_eq!(
-            hex(&pbkdf2(DigestKind::Sha512, b"Password", b"NaCl", 80_000, 64)),
+            hex(&pbkdf2(
+                DigestKind::Sha512,
+                b"Password",
+                b"NaCl",
+                80_000,
+                64
+            )),
             expect(&[
                 "e6337d6fbeb645c794d4a9b5b75b7b30dac9ac50376a91df1f4460f6060d5add",
                 "b2c1fd1f84409abacc67de7eb4056e6bb06c2d82c3ef4ccd1bded0f675ed97c6",

@@ -1,0 +1,360 @@
+{
+  "protocol": 2,
+  "plugin": "org.ljnljn.ewf-header",
+  "sdk": "0.2.0",
+  "analyzers": [
+    "ewf_header"
+  ],
+  "filesystems": [],
+  "records": [
+    {
+      "type": "profile.fact",
+      "label": "检材画像",
+      "title": "{key}",
+      "fields": [
+        {
+          "id": "key",
+          "label": "键",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "value",
+          "label": "值",
+          "kind": "json"
+        },
+        {
+          "id": "system",
+          "label": "系统",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "ewf.segment",
+      "label": "EWF 段文件",
+      "title": "{file}",
+      "fields": [
+        {
+          "id": "file",
+          "label": "文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "file_size",
+          "label": "文件大小",
+          "kind": "size"
+        },
+        {
+          "id": "format",
+          "label": "格式",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "ewf1",
+              "label": "EWF1"
+            },
+            {
+              "id": "ewf2",
+              "label": "EWF2"
+            },
+            {
+              "id": "ex01",
+              "label": "Ex01"
+            }
+          ]
+        },
+        {
+          "id": "format_kind",
+          "label": "格式类别",
+          "kind": "text"
+        },
+        {
+          "id": "segment_number",
+          "label": "段号",
+          "kind": "int"
+        },
+        {
+          "id": "extension_number",
+          "label": "扩展名序号",
+          "kind": "int"
+        },
+        {
+          "id": "extension_match",
+          "label": "扩展名一致",
+          "kind": "bool"
+        },
+        {
+          "id": "header_offset",
+          "label": "文件头偏移",
+          "kind": "size"
+        },
+        {
+          "id": "header_end",
+          "label": "文件头结束",
+          "kind": "size"
+        },
+        {
+          "id": "first_section_type",
+          "label": "首枚节段类型",
+          "kind": "text"
+        },
+        {
+          "id": "first_section_length",
+          "label": "首枚节段长度",
+          "kind": "size"
+        },
+        {
+          "id": "section_count",
+          "label": "节段数",
+          "kind": "int"
+        },
+        {
+          "id": "chain_limited",
+          "label": "节段链受限",
+          "kind": "bool"
+        },
+        {
+          "id": "has_table",
+          "label": "含 table 节段",
+          "kind": "bool"
+        },
+        {
+          "id": "has_done",
+          "label": "含 done 节段",
+          "kind": "bool"
+        },
+        {
+          "id": "volume_section_offset",
+          "label": "volume 节段偏移",
+          "kind": "size"
+        },
+        {
+          "id": "number_of_chunks",
+          "label": "volume：chunk 数",
+          "kind": "int"
+        },
+        {
+          "id": "sectors_per_chunk",
+          "label": "volume：每 chunk 扇区",
+          "kind": "int"
+        },
+        {
+          "id": "sector_size",
+          "label": "volume：扇区大小",
+          "kind": "size"
+        },
+        {
+          "id": "sector_count",
+          "label": "volume：扇区总数",
+          "kind": "int"
+        },
+        {
+          "id": "media_size_bytes",
+          "label": "volume：媒体大小",
+          "kind": "size"
+        },
+        {
+          "id": "compression",
+          "label": "volume：压缩",
+          "kind": "text"
+        },
+        {
+          "id": "volume_checksum_ok",
+          "label": "volume 校验",
+          "kind": "bool"
+        },
+        {
+          "id": "error_count",
+          "label": "错误数",
+          "kind": "int"
+        },
+        {
+          "id": "warning_count",
+          "label": "告警数",
+          "kind": "int"
+        },
+        {
+          "id": "errors",
+          "label": "错误",
+          "kind": "json"
+        },
+        {
+          "id": "warnings",
+          "label": "告警",
+          "kind": "json"
+        },
+        {
+          "id": "volume_notes",
+          "label": "volume 说明",
+          "kind": "json"
+        },
+        {
+          "id": "modified",
+          "label": "文件修改时间",
+          "kind": "timestamp",
+          "timeline": "modified"
+        }
+      ]
+    },
+    {
+      "type": "ewf.header",
+      "label": "EWF 文件头",
+      "title": "{file} 文件头",
+      "fields": [
+        {
+          "id": "file",
+          "label": "文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "offset",
+          "label": "文件头偏移",
+          "kind": "size"
+        },
+        {
+          "id": "size",
+          "label": "文件头大小",
+          "kind": "size"
+        },
+        {
+          "id": "signature_ok",
+          "label": "签名有效",
+          "kind": "bool"
+        },
+        {
+          "id": "signature_length",
+          "label": "签名长度",
+          "kind": "size"
+        },
+        {
+          "id": "format",
+          "label": "格式",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "ewf1",
+              "label": "EWF1"
+            },
+            {
+              "id": "ewf2",
+              "label": "EWF2"
+            },
+            {
+              "id": "ex01",
+              "label": "Ex01"
+            }
+          ]
+        },
+        {
+          "id": "format_id",
+          "label": "格式字节 8",
+          "kind": "int"
+        },
+        {
+          "id": "fields_start",
+          "label": "fields_start",
+          "kind": "int"
+        },
+        {
+          "id": "fields_end",
+          "label": "fields_end（hex）",
+          "kind": "text"
+        },
+        {
+          "id": "major_version",
+          "label": "主版本",
+          "kind": "int"
+        },
+        {
+          "id": "minor_version",
+          "label": "次版本",
+          "kind": "int"
+        },
+        {
+          "id": "compression_method",
+          "label": "压缩方法",
+          "kind": "int"
+        },
+        {
+          "id": "set_identifier",
+          "label": "集合标识",
+          "kind": "text"
+        },
+        {
+          "id": "segment_number",
+          "label": "段号",
+          "kind": "int"
+        },
+        {
+          "id": "sha256",
+          "label": "文件头 SHA-256",
+          "kind": "hash"
+        },
+        {
+          "id": "truncated",
+          "label": "文件头被截断",
+          "kind": "bool"
+        },
+        {
+          "id": "hex",
+          "label": "文件头十六进制",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "ewf.section",
+      "label": "EWF 节段",
+      "title": "{section_type} @ {offset}",
+      "fields": [
+        {
+          "id": "file",
+          "label": "文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "section_type",
+          "label": "节段类型",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "offset",
+          "label": "节段偏移",
+          "kind": "size",
+          "key": true
+        },
+        {
+          "id": "length",
+          "label": "节段长度",
+          "kind": "size"
+        },
+        {
+          "id": "body_offset",
+          "label": "内容偏移",
+          "kind": "size"
+        },
+        {
+          "id": "body_length",
+          "label": "内容长度",
+          "kind": "size"
+        },
+        {
+          "id": "next_offset",
+          "label": "下一节段偏移",
+          "kind": "size"
+        },
+        {
+          "id": "checksum_ok",
+          "label": "adler32 自检",
+          "kind": "bool"
+        }
+      ]
+    }
+  ],
+  "schema_hash": "fnv1a64:a762412a2575bfef"
+}

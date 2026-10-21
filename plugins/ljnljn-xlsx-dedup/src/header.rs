@@ -63,22 +63,80 @@ pub const HEADER_SCAN_ROWS: usize = 3;
 
 /// 列名别名（已规范化：全角转半角、去空白、小写）。
 pub const NAME_ALIASES: &[&str] = &[
-    "姓名", "收件人", "收件人姓名", "收件人姓名(name)", "名字", "联系人", "联系人姓名",
-    "客户姓名", "收货人", "收货人姓名", "顾客姓名", "name", "recipient", "recipientname",
-    "receivername", "contact", "contactname", "customername", "consignee", "收件方", "致件人",
+    "姓名",
+    "收件人",
+    "收件人姓名",
+    "收件人姓名(name)",
+    "名字",
+    "联系人",
+    "联系人姓名",
+    "客户姓名",
+    "收货人",
+    "收货人姓名",
+    "顾客姓名",
+    "name",
+    "recipient",
+    "recipientname",
+    "receivername",
+    "contact",
+    "contactname",
+    "customername",
+    "consignee",
+    "收件方",
+    "致件人",
 ];
 
 pub const PHONE_ALIASES: &[&str] = &[
-    "电话", "电话号码", "手机", "手机号", "手机号码", "联系电话", "收件电话", "收件人电话",
-    "收件人手机", "电话号", "移动电话", "联系方式", "tel", "telephone", "phone", "phoneno",
-    "phonenumber", "mobile", "mobileno", "mobilenumber", "cellphone", "cell", "msisdn", "contact",
-    "contactphone", "recipientphone", "收件手机",
+    "电话",
+    "电话号码",
+    "手机",
+    "手机号",
+    "手机号码",
+    "联系电话",
+    "收件电话",
+    "收件人电话",
+    "收件人手机",
+    "电话号",
+    "移动电话",
+    "联系方式",
+    "tel",
+    "telephone",
+    "phone",
+    "phoneno",
+    "phonenumber",
+    "mobile",
+    "mobileno",
+    "mobilenumber",
+    "cellphone",
+    "cell",
+    "msisdn",
+    "contact",
+    "contactphone",
+    "recipientphone",
+    "收件手机",
 ];
 
 pub const ADDRESS_ALIASES: &[&str] = &[
-    "地址", "详细地址", "收件地址", "收件人地址", "收货地址", "住址", "家庭地址", "联系地址",
-    "邮寄地址", "收件详细地址", "address", "addresseeaddress", "detailaddress", "detailedaddress",
-    "streetaddress", "addr", "addressdetail", "recipientaddress", "联系人地址", "所在地址",
+    "地址",
+    "详细地址",
+    "收件地址",
+    "收件人地址",
+    "收货地址",
+    "住址",
+    "家庭地址",
+    "联系地址",
+    "邮寄地址",
+    "收件详细地址",
+    "address",
+    "addresseeaddress",
+    "detailaddress",
+    "detailedaddress",
+    "streetaddress",
+    "addr",
+    "addressdetail",
+    "recipientaddress",
+    "联系人地址",
+    "所在地址",
 ];
 
 fn aliases_for(field: Field) -> &'static [&'static str] {
@@ -135,7 +193,15 @@ pub fn match_header(label: &str) -> Option<Field> {
     if address_markers.iter().any(|marker| label.contains(marker)) {
         return Some(Field::Address);
     }
-    let name_markers = ["姓名", "收件人", "收货人", "联系人", "name", "recipient", "consignee"];
+    let name_markers = [
+        "姓名",
+        "收件人",
+        "收货人",
+        "联系人",
+        "name",
+        "recipient",
+        "consignee",
+    ];
     if name_markers.iter().any(|marker| label.contains(marker)) {
         return Some(Field::Name);
     }
@@ -237,8 +303,17 @@ mod tests {
 
     #[test]
     fn chinese_headers_match_aliases() {
-        let header = detect_header_row(1, &cells(&[(0, "ID"), (1, " 姓名 "), (2, "收件人电话"), (3, "详细地址"), (4, "省")]))
-            .expect("header");
+        let header = detect_header_row(
+            1,
+            &cells(&[
+                (0, "ID"),
+                (1, " 姓名 "),
+                (2, "收件人电话"),
+                (3, "详细地址"),
+                (4, "省"),
+            ]),
+        )
+        .expect("header");
         assert_eq!(header.source, HeaderSource::Header);
         assert_eq!(header.columns, [Some(1), Some(2), Some(3)]);
         assert_eq!(header.labels[0].as_deref(), Some("姓名"));
@@ -290,8 +365,11 @@ mod tests {
 
     #[test]
     fn partial_header_is_still_a_header() {
-        let header = detect_header_row(1, &cells(&[(0, "单号"), (1, "姓名"), (2, "电话"), (3, "备注")]))
-            .expect("header");
+        let header = detect_header_row(
+            1,
+            &cells(&[(0, "单号"), (1, "姓名"), (2, "电话"), (3, "备注")]),
+        )
+        .expect("header");
         assert_eq!(header.columns, [Some(1), Some(2), None]);
         assert_eq!(header.source, HeaderSource::Header);
     }

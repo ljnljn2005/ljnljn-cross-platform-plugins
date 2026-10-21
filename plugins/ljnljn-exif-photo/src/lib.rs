@@ -1,750 +1,868 @@
-//! 照片元数据（EXIF/GPS）检材级 + 文件级分析器。
+//! Photo format detection and EXIF/GPS metadata (LPP v2).
 //!
-//! 能力来源：知识库素材 `mulakgi41k66gz`（草稿、未验证）只有一条“DCIM/Camera
-//! 下照片数 = App 分页条数”的人工比对结论，没有任何可复现步骤，因此本插件
-//! **不复用其结论与案件取值**，只实现它归纳出的通用离线能力：
+//! Port of the v1 `ljnljn.exif-photo` analyzers. The container walker, TIFF
+//! reader, field interpreter and format sniffer are carried over unchanged
+//! (`container`, `exif`, `fields`, `format`, `record`, `sha256`); this crate
+//! adds typed records and two LPP v2 analyzers:
 //!
-//! 1. 递归枚举照片目录（或单个照片文件）中扩展名为 jpg/jpeg/png/heic/heif 的
-//!    候选文件，按文件头魔数确认真实格式；扩展名与内容不符的非图片文件跳过并计数。
-//! 2. 解析 JPEG APP1 `Exif\0\0` 段 / PNG `eXIf` 块的 TIFF 结构（IFD0、ExifIFD、
-//!    GPS IFD），逐 Tag 输出原值与文件内偏移；PNG 另读 tEXt/iTXt/zTXt 与
-//!    `XML:com.adobe.xmp`。
-//! 3. 输出拍摄时间原值（不改时区、不补年份）+ 原始精度标记、经度/纬度十进制度、
-//!    缺失字段列表，以及整批汇总（文件数、含 EXIF、含 GPS、无 GPS、失败原因）。
+//! - `exif_files` (scope `files`): every selected jpg/jpeg/png/heic/heif file;
+//! - `exif_evidence` (scope `evidence`): recursive walk of the evidence view
+//!   (depth ≤ [`MAX_DEPTH`], at most [`MAX_DIRECTORIES`] directories), parsing
+//!   each photo candidate with the same code path.
 //!
-//! 输入全部来自 SDK 的只读逻辑句柄（`Evidence` / `EvidenceVolume` / `File`），
-//! 不使用 `std::fs` 读取检材，也不执行检材内任何程序。
+//! Preserved behavior:
+//! - the extension decides candidacy, the file header decides the real format;
+//!   a mismatch is recorded and the real format is parsed;
+//! - EXIF `DateTimeOriginal` stays verbatim in `datetime_original_raw`;
+//!   `capture_time` is a *local* wall-clock timestamp (no offset) and is not
+//!   time-zone shifted. The declared `OffsetTimeOriginal`, when present, is
+//!   recorded next to it and never applied;
+//! - GPS degrees/minutes/seconds are converted to signed decimal degrees,
+//!   with the sign coming only from the N/S/E/W reference;
+//! - truncated, cyclic or out-of-bounds EXIF rejects the file with an explicit
+//!   issue record instead of emitting empty fields;
+//! - HEIC/HEIF are identified by magic; their ISO-BMFF EXIF is not parsed.
 //!
-//! 可选参数（宿主 `params` 里存在才生效，否则用默认值并在 summary 中说明）：
-//! - `path`：相对 root 的单个照片文件路径（与目录二选一，文件优先）；
-//! - `photoDir`：相对 root 的起始目录，默认按 [`DEFAULT_PHOTO_DIRS`] 依次尝试；
-//! - `maxFiles`：最多解析多少张候选照片，默认 [`DEFAULT_MAX_FILES`]；
-//! - `includeNoExif`：是否保留无 EXIF 的照片记录，默认 `true`。
+//! `include_no_exif` (default true) keeps photos without EXIF as records;
+//! `max_files` (default 5000, ceiling 20000) bounds every run.
 
 mod container;
 pub mod exif;
 pub mod fields;
 mod format;
 mod record;
-mod report;
 mod sha256;
 
-/// 测试支持 API（见 src/testing.rs 说明）：只暴露内存解析与样例构造，
-/// 供 `tests/` 集成测试复用；宿主运行路径不经过这里。
-pub mod testing;
-
+#[cfg(test)]
 pub mod fixtures;
-
-use std::collections::BTreeMap;
+#[cfg(test)]
+mod tests;
 
 use lovelycarve_plugin::{
-    export_plugin, value, AnalysisResult, Artifact, Attributes, Evidence, EvidenceAnalyzer,
-    EvidenceVolume, File, FileAnalyzer, Finding, LogLevel, Plugin, Result, ResultColumn,
-    ResultNode, Severity, Value,
+    export_plugin, FileRef, Plugin, Record, Result, Run, Timestamp, Value, View,
 };
 
-use record::{accumulate, Outcome, PhotoRecord, RunSummary};
+use crate::fields::{Coordinate, MetadataFields, Origin};
+use crate::format::{ExtensionKind, RealFormat};
+use crate::record::{parse_file, Outcome, PhotoRecord, RunSummary};
 
-pub const PLUGIN_ID: &str = "org.ljnljn.exif-photo";
-pub const PLUGIN_NAME: &str = "照片元数据(EXIF/GPS)";
-pub const EVIDENCE_ANALYZER: &str = "ljnljn.exif-photo";
-pub const FILE_ANALYZER: &str = "ljnljn.exif-photo.file";
-
-/// Hard cap on candidate photos parsed per run (overridable via `params.maxFiles`).
+/// File-scope analyzer id (must match `plugin.toml`).
+pub const ANALYZER_FILES: &str = "exif_files";
+/// Evidence-scope analyzer id (must match `plugin.toml`).
+pub const ANALYZER_EVIDENCE: &str = "exif_evidence";
+/// Default cap of parsed photo candidates per run.
 pub const DEFAULT_MAX_FILES: usize = 5000;
-/// Absolute ceiling for `params.maxFiles`.
+/// Absolute cap of parsed photo candidates per run.
 pub const MAX_FILES_CEILING: usize = 20_000;
-/// Root-relative directories searched for photos, in preference order.
-pub const DEFAULT_PHOTO_DIRS: &[&str] = &["DCIM/Camera", "DCIM", "Pictures", "sdcard/DCIM"];
 /// Photos larger than this are rejected and recorded.
 pub const MAX_PHOTO_BYTES: u64 = 64 * 1024 * 1024;
-/// Bounded recursion.
+/// Bounded recursion for the evidence walk.
 pub const MAX_DEPTH: usize = 24;
+/// Bounded directory count for the evidence walk.
 pub const MAX_DIRECTORIES: usize = 50_000;
-/// The host accepts at most 10,000 result items per run.
-pub const MAX_ARTIFACTS: usize = 9_000;
-/// Host limit on declared result columns.
-const MAX_COLUMNS: usize = 64;
+/// Host-accepted records per run; the remainder is counted.
+const MAX_EMIT_RECORDS: usize = 9_000;
 
-/// Analysis options resolved from the host params.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Options {
-    pub max_files: usize,
-    pub include_no_exif: bool,
-    pub photo_dir: Option<String>,
-    pub file_path: Option<String>,
-}
-
-impl Default for Options {
-    fn default() -> Self {
-        Self {
-            max_files: DEFAULT_MAX_FILES,
-            include_no_exif: true,
-            photo_dir: None,
-            file_path: None,
-        }
-    }
-}
-
-impl Options {
-    /// Reads optional host params; malformed values fall back to defaults.
-    pub fn from_params(params: &Value) -> (Self, Vec<String>) {
-        let mut options = Self::default();
-        let mut notes = Vec::new();
-        if let Some(param) = value::get(params, "maxFiles") {
-            match param.as_u64() {
-                Some(0) => notes.push("参数 maxFiles=0 无效，改用默认值".to_owned()),
-                Some(count) => {
-                    let count = usize::try_from(count).unwrap_or(MAX_FILES_CEILING);
-                    if count > MAX_FILES_CEILING {
-                        notes.push(format!(
-                            "参数 maxFiles={count} 超过上限 {MAX_FILES_CEILING}，已截断"
-                        ));
-                    }
-                    options.max_files = count.min(MAX_FILES_CEILING);
-                }
-                None => notes.push("参数 maxFiles 不是无符号整数，改用默认值".to_owned()),
-            }
-        }
-        if let Some(param) = value::get(params, "includeNoExif") {
-            match param.as_bool() {
-                Some(flag) => options.include_no_exif = flag,
-                None => notes.push("参数 includeNoExif 不是布尔值，改用默认值 true".to_owned()),
-            }
-        }
-        if let Some(text) = value::get(params, "photoDir").and_then(Value::as_str) {
-            match normalize_relative(text) {
-                Some(path) => options.photo_dir = Some(path),
-                None => notes.push(format!("参数 photoDir='{text}' 不可用，忽略")),
-            }
-        }
-        if let Some(text) = value::get(params, "path").and_then(Value::as_str) {
-            match normalize_relative(text) {
-                Some(path) => options.file_path = Some(path),
-                None => notes.push(format!("参数 path='{text}' 不可用，忽略")),
-            }
-        }
-        (options, notes)
-    }
-}
-
-/// Trims slashes and rejects traversal / empty paths.
-fn normalize_relative(text: &str) -> Option<String> {
-    let trimmed = text.trim().trim_matches('/');
-    if trimmed.is_empty() || trimmed.split('/').any(|part| part == ".." || part == ".") {
-        return None;
-    }
-    Some(trimmed.to_owned())
-}
-
-// ---------------------------------------------------------------------------
-// Evidence analyzer (directory / single-photo mode)
-// ---------------------------------------------------------------------------
-
-pub struct PhotoMetadataEvidence;
-
-impl EvidenceAnalyzer for PhotoMetadataEvidence {
-    fn analyzer(&self) -> &str {
-        EVIDENCE_ANALYZER
-    }
-
-    fn analyze_evidence(&self, evidence: &Evidence) -> Result<AnalysisResult> {
-        let (options, mut notes) = Options::from_params(evidence.params());
-        let mut collector = Collector::new(&options, &mut notes);
-        for root in evidence.roots()? {
-            let volume = evidence.volume(&root.root_id);
-            if analyze_volume(&volume, evidence, &options, &mut collector)? {
-                break;
-            }
-        }
-        Ok(collector.finish())
-    }
-}
-
-/// Analyzes one root. Returns true when a photo source was found here.
-fn analyze_volume(
-    volume: &EvidenceVolume,
-    evidence: &Evidence,
-    options: &Options,
-    collector: &mut Collector,
-) -> Result<bool> {
-    let context = volume.context();
-    let starts: Vec<String> = match &options.file_path {
-        Some(path) => vec![path.clone()],
-        None => match &options.photo_dir {
-            Some(directory) => vec![directory.clone()],
-            None => DEFAULT_PHOTO_DIRS.iter().map(|dir| (*dir).to_owned()).collect(),
-        },
-    };
-    let mut found: Option<String> = None;
-    for start in &starts {
-        let context = context;
-        context.check_cancelled()?;
-        match volume.stat(start) {
-            Ok(Some(_)) => {
-                found = Some(start.clone());
-                break;
-            }
-            Ok(None) => {
-                collector
-                    .notes
-                    .push(format!("根 {} 下没有 '{start}'", volume.root_id()));
-            }
-            Err(error) if error.is_cancelled() => return Err(error),
-            Err(error) => collector.notes.push(format!(
-                "根 {} 访问 '{start}' 失败（{}: {}）",
-                volume.root_id(),
-                error.code,
-                error.message
-            )),
-        }
-    }
-    let Some(start) = found else {
-        return Ok(false);
-    };
-    collector.source = Some(start.clone());
-    // Every emitted artifact is attributed to the root it was read from.
-    collector.root_id = volume.root_id().to_owned();
-    if options.file_path.is_some() {
-        parse_one(volume, &start, options, collector)?;
-        return Ok(true);
-    }
-    let mut stack: Vec<(String, usize)> = vec![(start, 0)];
-    let mut directories = 0usize;
-    while let Some((path, depth)) = stack.pop() {
-        context.check_cancelled()?;
-        if collector.reached_limit() {
-            // Candidate files of directories already listed were counted when
-            // they were skipped; a pending directory is not itself an unparsed
-            // photo, so enumeration simply stops here.
-            break;
-        }
-        directories += 1;
-        if directories > MAX_DIRECTORIES {
-            collector
-                .notes
-                .push(format!("目录数超过 {MAX_DIRECTORIES}，已停止枚举"));
-            break;
-        }
-        let entries = match volume.list(&path) {
-            Ok(entries) => entries,
-            Err(error) if error.is_cancelled() => return Err(error),
-            Err(error) => {
-                collector.notes.push(format!(
-                    "目录 '{path}' 无法枚举（{}: {}）",
-                    error.code, error.message
-                ));
-                continue;
-            }
-        };
-        for entry in entries {
-            let child = format!("{path}/{}", entry.name);
-            // `EvidenceNode::kind` is the LPP string form: file/dir/link/unallocated.
-            match entry.kind.as_str() {
-                "dir" => {
-                    if entry.deleted {
-                        collector.notes.push(format!("跳过已删除目录 '{child}'"));
-                        continue;
-                    }
-                    if depth + 1 > MAX_DEPTH {
-                        collector
-                            .notes
-                            .push(format!("目录 '{child}' 超过深度上限 {MAX_DEPTH}，未展开"));
-                        continue;
-                    }
-                    stack.push((child, depth + 1));
-                }
-                "file" => {
-                    if entry.deleted {
-                        collector.notes.push(format!("跳过已删除文件 '{child}'"));
-                        continue;
-                    }
-                    if format::ExtensionKind::from_name(&entry.name).is_none() {
-                        continue;
-                    }
-                    if collector.reached_limit() {
-                        collector.summary.skipped_beyond_limit += 1;
-                        continue;
-                    }
-                    collector.candidates += 1;
-                    if collector.candidates % 200 == 0 {
-                        let _ = evidence.progress(
-                            collector.candidates as u64,
-                            Some(options.max_files as u64),
-                            Some("解析照片元数据"),
-                        );
-                    }
-                    parse_one(volume, &child, options, collector)?;
-                }
-                // Symlinks are not followed for traversal and unallocated
-                // nodes carry no readable content.
-                _ => {}
-            }
-        }
-    }
-    Ok(true)
-}
-
-fn parse_one(
-    volume: &EvidenceVolume,
-    path: &str,
-    options: &Options,
-    collector: &mut Collector,
-) -> Result<()> {
-    if collector.reached_limit() {
-        collector.summary.skipped_beyond_limit += 1;
-        return Ok(());
-    }
-    let context = volume.context();
-    let name = path.rsplit('/').next().unwrap_or(path).to_owned();
-    if format::ExtensionKind::from_name(&name).is_none() && options.file_path.is_some() {
-        collector.summary.record_excluded("extension_not_photo");
-        collector.issues.push(Issue {
-            path: path.to_owned(),
-            reason: "extension_not_photo".to_owned(),
-            text: "扩展名不在 jpg/jpeg/png/heic/heif 内，未按照片解析".to_owned(),
-            size: 0,
-        });
-        return Ok(());
-    }
-    let size = match volume.size(path) {
-        Ok(Some(size)) => size,
-        Ok(None) => {
-            collector
-                .notes
-                .push(format!("'{path}' 在枚举后消失，已跳过"));
-            return Ok(());
-        }
-        Err(error) if error.is_cancelled() => return Err(error),
-        Err(error) => {
-            collector.summary.record_failure("stat_failed");
-            collector.issues.push(Issue {
-                path: path.to_owned(),
-                reason: "stat_failed".to_owned(),
-                text: format!("读取属性失败（{}: {}）", error.code, error.message),
-                size: 0,
-            });
-            return Ok(());
-        }
-    };
-    if size == 0 {
-        return collector.reject(path, "empty", "文件长度为 0", 0);
-    }
-    if size > MAX_PHOTO_BYTES {
-        return collector.reject(
-            path,
-            "too_large",
-            &format!("文件 {size} 字节超过单文件上限 {MAX_PHOTO_BYTES}"),
-            size,
-        );
-    }
-    let head = match volume.read(path, 0, Some(format::HEADER_PROBE as u64)) {
-        Ok(head) => head,
-        Err(error) if error.is_cancelled() => return Err(error),
-        Err(error) => {
-            return collector.reject(
-                path,
-                "read_failed",
-                &format!("读取文件头失败（{}: {}）", error.code, error.message),
-                size,
-            )
-        }
-    };
-    if format::sniff(&head) == format::RealFormat::Unknown {
-        collector.summary.record_excluded("not_image");
-        collector.issues.push(Issue {
-            path: path.to_owned(),
-            reason: "not_image".to_owned(),
-            text: format!(
-                "扩展名声称照片但文件头不是 JPEG/PNG/HEIC/HEIF（前 {} 字节：{}）",
-                head.len(),
-                hex(&head)
-            ),
-            size,
-        });
-        return Ok(());
-    }
-    let bytes = match volume.read(path, 0, Some(size)) {
-        Ok(bytes) => bytes,
-        Err(error) if error.is_cancelled() => return Err(error),
-        Err(error) => {
-            return collector.reject(
-                path,
-                "read_failed",
-                &format!("读取文件失败（{}: {}）", error.code, error.message),
-                size,
-            )
-        }
-    };
-    if bytes.len() as u64 != size {
-        return collector.reject(
-            path,
-            "short_read",
-            &format!("读取长度 {} 与声明长度 {size} 不一致", bytes.len()),
-            size,
-        );
-    }
-    let outcome = record::parse_file(path, &bytes);
-    collector.absorb(outcome, path, size, context);
-    Ok(())
-}
-
-fn hex(bytes: &[u8]) -> String {
-    bytes
-        .iter()
-        .map(|byte| format!("{byte:02x}"))
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-struct Issue {
+/// One photo's metadata.
+#[derive(Record)]
+#[record(id = "photo.exif", label = "照片元数据", title = "{path} ({format})")]
+struct PhotoRow {
+    #[field(label = "源文件路径", key)]
     path: String,
-    reason: String,
-    text: String,
+    #[field(label = "文件名")]
+    name: String,
+    #[field(
+        label = "真实格式",
+        kind = "enum",
+        choices = "jpeg=JPEG,png=PNG,heic=HEIC,heif=HEIF,unknown=Unknown"
+    )]
+    format: String,
+    #[field(label = "容器")]
+    container: String,
+    #[field(label = "声明扩展名")]
+    declared_extension: String,
+    #[field(label = "扩展名与格式不符")]
+    extension_mismatch: bool,
+    #[field(label = "字节长度", kind = "size")]
+    size: u64,
+    #[field(label = "SHA-256", kind = "hash")]
+    sha256: String,
+    #[field(label = "含 EXIF")]
+    exif_present: bool,
+    #[field(label = "含 GPS")]
+    gps_present: bool,
+    #[field(label = "GPS 参考缺失（按正值输出）")]
+    gps_ref_defaulted: bool,
+    #[field(label = "拍摄时间（原值）")]
+    datetime_original_raw: Option<String>,
+    #[field(label = "拍摄时间偏移（原值，未应用）")]
+    datetime_original_offset: Option<String>,
+    #[field(label = "拍摄时间精度")]
+    datetime_original_precision: Option<String>,
+    #[field(label = "拍摄时间（本地墙钟）")]
+    capture_time: Option<Timestamp>,
+    #[field(label = "修改时间（原值）")]
+    datetime_raw: Option<String>,
+    #[field(label = "数字化时间（原值）")]
+    datetime_digitized_raw: Option<String>,
+    #[field(label = "厂商")]
+    make: Option<String>,
+    #[field(label = "机型")]
+    model: Option<String>,
+    #[field(label = "镜头")]
+    lens_model: Option<String>,
+    #[field(label = "软件")]
+    software: Option<String>,
+    #[field(label = "宽")]
+    image_width: Option<i64>,
+    #[field(label = "高")]
+    image_height: Option<i64>,
+    #[field(label = "PNG 宽")]
+    png_width: Option<i64>,
+    #[field(label = "PNG 高")]
+    png_height: Option<i64>,
+    #[field(label = "方向")]
+    orientation: Option<i64>,
+    #[field(label = "方向说明")]
+    orientation_label: Option<String>,
+    #[field(label = "纬度参考")]
+    latitude_ref: Option<String>,
+    #[field(label = "纬度（度分秒）")]
+    latitude_dms: Option<String>,
+    #[field(label = "纬度（十进制度）")]
+    latitude_decimal: Option<f64>,
+    #[field(label = "经度参考")]
+    longitude_ref: Option<String>,
+    #[field(label = "经度（度分秒）")]
+    longitude_dms: Option<String>,
+    #[field(label = "经度（十进制度）")]
+    longitude_decimal: Option<f64>,
+    #[field(label = "海拔（米，按参考修正）")]
+    altitude: Option<f64>,
+    #[field(label = "海拔原值（米）")]
+    altitude_raw: Option<f64>,
+    #[field(label = "海拔参考")]
+    altitude_ref: Option<String>,
+    #[field(label = "GPS 时间")]
+    gps_timestamp: Option<String>,
+    #[field(label = "GPS 日期")]
+    gps_datestamp: Option<String>,
+    #[field(label = "GPS 卫星")]
+    gps_satellites: Option<String>,
+    #[field(label = "缺失字段", kind = "list")]
+    missing: Vec<String>,
+    #[field(label = "字段来源偏移")]
+    origin: Option<String>,
+    #[field(label = "EXIF 载体")]
+    exif_carrier: Option<String>,
+    #[field(label = "容器偏移", kind = "size")]
+    container_offset: Option<u64>,
+    #[field(label = "TIFF 偏移", kind = "size")]
+    tiff_offset: Option<u64>,
+    #[field(label = "字节序")]
+    byte_order: Option<String>,
+    #[field(label = "IFD 偏移")]
+    ifd_offsets: Option<String>,
+    #[field(label = "EXIF 标签数")]
+    tag_count: i64,
+    #[field(label = "EXIF 候选段数")]
+    exif_candidates: i64,
+    #[field(label = "跳过的 EXIF 项", kind = "list")]
+    exif_skipped: Vec<String>,
+    #[field(label = "XMP 偏移", kind = "size")]
+    xmp_offset: Option<u64>,
+    #[field(label = "XMP 创建时间")]
+    xmp_date: Option<String>,
+    #[field(label = "XMP 工具")]
+    xmp_tool: Option<String>,
+    #[field(label = "XMP 被截断")]
+    xmp_truncated: bool,
+    #[field(label = "PNG 文本块", kind = "list")]
+    png_texts: Vec<String>,
+    #[field(label = "记录完整")]
+    complete: bool,
+    #[field(label = "警告", kind = "list")]
+    warnings: Vec<String>,
+}
+
+/// A file that could not be parsed as a photo.
+#[derive(Record)]
+#[record(
+    id = "photo.issue",
+    label = "照片解析失败/跳过",
+    title = "{path} [{code}]"
+)]
+struct IssueRow {
+    #[field(label = "源文件路径", key)]
+    path: String,
+    #[field(label = "原因代码")]
+    code: String,
+    #[field(label = "原因说明")]
+    reason_text: String,
+    #[field(label = "字节长度", kind = "size")]
     size: u64,
 }
 
-/// Accumulates outcomes across a run and emits bounded SDK results.
-pub struct Collector {
-    options: Options,
-    notes: Vec<String>,
-    pub summary: RunSummary,
-    pub candidates: usize,
-    source: Option<String>,
-    root_id: String,
-    records: Vec<PhotoRecord>,
-    issues: Vec<Issue>,
+/// Run-level counters (same definitions as the v1 summary artifact).
+#[derive(Record)]
+#[record(
+    id = "photo.summary",
+    label = "照片元数据汇总",
+    title = "{analyzer} · {scope}"
+)]
+struct SummaryRow {
+    #[field(label = "作用域", key)]
+    scope: String,
+    #[field(label = "分析器")]
+    analyzer: String,
+    #[field(label = "文件数")]
+    files: i64,
+    #[field(label = "含 EXIF")]
+    with_exif: i64,
+    #[field(label = "含 GPS")]
+    with_gps: i64,
+    #[field(label = "无 GPS")]
+    without_gps: i64,
+    #[field(label = "无 EXIF")]
+    without_exif: i64,
+    #[field(label = "解析失败")]
+    failed: i64,
+    #[field(label = "非图片/扩展名不符跳过")]
+    excluded_non_image: i64,
+    #[field(label = "超出上限未解析")]
+    skipped_beyond_limit: i64,
+    #[field(label = "失败原因（代码×次数）", kind = "list")]
+    reasons: Vec<String>,
+    #[field(label = "汇总说明")]
+    text: String,
+}
+
+struct RunOptions {
+    include_no_exif: bool,
+    max_files: usize,
+}
+
+impl RunOptions {
+    fn read(run: &Run) -> Self {
+        let include_no_exif = run
+            .options()
+            .get("include_no_exif")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+        let max_files = run
+            .options()
+            .get("max_files")
+            .and_then(|value| {
+                value
+                    .as_str()
+                    .and_then(|text| text.trim().parse::<usize>().ok())
+                    .or_else(|| value.as_u64().map(|value| value as usize))
+            })
+            .unwrap_or(DEFAULT_MAX_FILES)
+            .clamp(1, MAX_FILES_CEILING);
+        Self {
+            include_no_exif,
+            max_files,
+        }
+    }
+}
+
+struct Emitter<'a> {
+    run: &'a Run,
+    options: RunOptions,
+    summary: RunSummary,
+    records: usize,
     overflow: usize,
 }
 
-impl Collector {
-    pub fn new(options: &Options, notes: &mut Vec<String>) -> Self {
+impl<'a> Emitter<'a> {
+    fn new(run: &'a Run, options: RunOptions) -> Self {
         Self {
-            options: options.clone(),
-            notes: std::mem::take(notes),
+            run,
+            options,
             summary: RunSummary::default(),
-            candidates: 0,
-            source: None,
-            root_id: String::new(),
-            records: Vec::new(),
-            issues: Vec::new(),
+            records: 0,
             overflow: 0,
         }
     }
 
-    pub fn reached_limit(&self) -> bool {
-        self.summary.total >= self.options.max_files
-    }
-
-    fn reject(&mut self, path: &str, reason: &str, text: &str, size: u64) -> Result<()> {
-        self.summary.record_failure(reason);
-        self.issues.push(Issue {
+    fn emit_issue(
+        &mut self,
+        file: Option<&FileRef>,
+        path: &str,
+        code: &str,
+        text: &str,
+        size: u64,
+    ) -> Result<()> {
+        if self.records >= MAX_EMIT_RECORDS {
+            self.overflow += 1;
+            return Ok(());
+        }
+        let record = IssueRow {
             path: path.to_owned(),
-            reason: reason.to_owned(),
-            text: text.to_owned(),
+            code: code.to_owned(),
+            reason_text: text.to_owned(),
             size,
-        });
+        };
+        let mut emit = self.run.record(&record);
+        if let Some(file) = file {
+            emit = emit.from(file);
+        }
+        emit.note(format!("{path} [{code}]")).emit()?;
+        self.records += 1;
         Ok(())
     }
 
     fn absorb(
         &mut self,
         outcome: Outcome,
-        path: &str,
+        file: Option<&FileRef>,
+        display: &str,
         size: u64,
-        context: &lovelycarve_plugin::Context,
-    ) {
-        accumulate(&mut self.summary, &outcome);
+    ) -> Result<()> {
         match outcome {
-            Outcome::Photo(mut record) => {
-                // Provenance: the record must carry the root it came from.
-                record.root_id = self.root_id.clone();
-                // `accumulate` already recorded `record.reason` for photos
-                // without EXIF; do not count the same reason twice.
-                if !record.skipped_exif.is_empty() {
-                    context.log(
-                        LogLevel::Debug,
-                        &format!("{}: {}", record.path, record.skipped_exif.join("; ")),
-                    );
-                }
+            Outcome::Photo(record) => {
+                record::accumulate(&mut self.summary, &Outcome::Photo(record.clone()));
                 if record.exif_present || self.options.include_no_exif {
-                    if self.records.len() + self.issues.len() < MAX_ARTIFACTS {
-                        self.records.push(*record);
-                    } else {
-                        self.overflow += 1;
-                    }
+                    self.emit_photo(file, display, &record)?;
                 }
+                Ok(())
             }
             Outcome::Rejected(error) => {
-                if self.records.len() + self.issues.len() < MAX_ARTIFACTS {
-                    self.issues.push(Issue {
-                        path: path.to_owned(),
-                        reason: error.reason.to_owned(),
-                        text: error.message,
-                        size,
-                    });
-                } else {
-                    self.overflow += 1;
-                }
+                self.summary.record_failure(error.reason);
+                self.emit_issue(file, display, error.reason, &error.message, size)
             }
-            Outcome::NotPhoto { detail, .. } => {
-                if self.records.len() + self.issues.len() < MAX_ARTIFACTS {
-                    self.issues.push(Issue {
-                        path: path.to_owned(),
-                        reason: "not_image".to_owned(),
-                        text: detail,
-                        size,
-                    });
-                } else {
-                    self.overflow += 1;
-                }
+            Outcome::NotPhoto { format, detail } => {
+                self.summary.record_excluded("not_image");
+                self.emit_issue(
+                    file,
+                    display,
+                    "not_image",
+                    &format!("{}：{detail}", format.label()),
+                    size,
+                )
             }
-            Outcome::NotCandidate => {}
+            Outcome::NotCandidate => {
+                self.summary.record_excluded("extension_not_photo");
+                self.emit_issue(
+                    file,
+                    display,
+                    "extension_not_photo",
+                    "扩展名不在 jpg/jpeg/png/heic/heif 内，未按照片解析",
+                    size,
+                )
+            }
         }
     }
 
-    /// Builds the final SDK result (summary artifact last).
-    pub fn finish(mut self) -> AnalysisResult {
-        if self.summary.total == 0 && self.source.is_none() {
-            self.summary.finish();
-            let mut summary = format!("未找到照片目录：{}", self.summary.text);
-            if !self.notes.is_empty() {
-                summary.push_str("；说明：");
-                summary.push_str(&self.notes.join("；"));
-            }
-            return AnalysisResult {
-                summary: Some(summary),
-                ..AnalysisResult::default()
-            };
+    fn emit_photo(
+        &mut self,
+        file: Option<&FileRef>,
+        display: &str,
+        record: &PhotoRecord,
+    ) -> Result<()> {
+        if self.records >= MAX_EMIT_RECORDS {
+            self.overflow += 1;
+            return Ok(());
         }
+        let row = photo_row(display, record);
+        let mut emit = self.run.record(&row);
+        if let Some(file) = file {
+            emit = emit.from(file);
+        }
+        emit.note(format!(
+            "{}；{}；{}",
+            record.path,
+            record.format.label(),
+            record.sha256
+        ))
+        .emit()?;
+        self.records += 1;
+        Ok(())
+    }
+
+    fn finish(mut self, scope: &str, analyzer: &str) -> Result<()> {
         self.summary.finish();
-        let mut artifacts: Vec<Artifact> = Vec::new();
-        let mut findings: Vec<Finding> = Vec::new();
-        for record in &mut self.records {
-            let has_issues = !record.warnings.is_empty();
-            artifacts.push(report::photo_artifact(record));
-            if has_issues {
-                let mut attributes: Attributes = Attributes::new();
-                attributes.insert("source.root", record.root_id.clone());
-                attributes.insert("source.path", record.path.clone());
-                attributes.insert("photo.path", record.path.clone());
-                findings.push(Finding {
-                    severity: Severity::Low,
-                    title: format!("{} 记录不完整", record.path),
-                    description: record.warnings.join("；"),
-                    attributes,
-                });
-            }
-        }
-        for issue in &self.issues {
-            let mut attributes: Attributes = Attributes::new();
-            attributes.insert("source.root", self.root_id.clone());
-            attributes.insert("source.path", issue.path.clone());
-            attributes.insert("photo.path", issue.path.clone());
-            attributes.insert("photo.reason", issue.reason.clone());
-            attributes.insert("photo.reason_text", issue.text.clone());
-            attributes.insert("photo.bytes", issue.size);
-            artifacts.push(Artifact {
-                artifact_type: "photo.issue".to_owned(),
-                title: format!("{} [{}]", issue.path, issue.reason),
-                value: Some(Value::from(issue.path.clone())),
-                attributes,
-            });
-        }
         if self.overflow > 0 {
             self.summary.text.push_str(&format!(
-                "；另有 {} 条记录因结果上限未输出（请调小 maxFiles）",
+                "；另有 {} 条记录因结果上限未输出（请调小 max_files）",
                 self.overflow
             ));
         }
-        let records = self.records.len();
-        artifacts.push(report::summary_artifact(&self.summary, records));
-        let mut summary = format!(
-            "{}；起点 {}",
-            self.summary.text,
-            self.source.clone().unwrap_or_else(|| "-".to_owned())
-        );
-        if !self.notes.is_empty() {
-            summary.push_str("；说明：");
-            summary.push_str(&self.notes.join("；"));
-        }
-        let nodes = result_nodes(&artifacts);
-        AnalysisResult {
-            summary: Some(summary),
-            nodes,
-            artifacts,
-            timeline: Vec::new(),
-            findings,
-        }
+        let reasons: Vec<String> = self
+            .summary
+            .reasons
+            .iter()
+            .map(|(code, count)| format!("{code}×{count}"))
+            .collect();
+        let row = SummaryRow {
+            scope: scope.to_owned(),
+            analyzer: analyzer.to_owned(),
+            files: self.summary.total as i64,
+            with_exif: self.summary.with_exif as i64,
+            with_gps: self.summary.with_gps as i64,
+            without_gps: self.summary.without_gps as i64,
+            without_exif: self.summary.without_exif as i64,
+            failed: self.summary.failed as i64,
+            excluded_non_image: self.summary.excluded_non_image as i64,
+            skipped_beyond_limit: self.summary.skipped_beyond_limit as i64,
+            reasons,
+            text: self.summary.text.clone(),
+        };
+        self.run.record(&row).emit()?;
+        self.run.set_summary(self.summary.text);
+        Ok(())
     }
 }
 
-/// Declares one result node per artifact type, with the columns that have data.
-fn result_nodes(artifacts: &[Artifact]) -> Vec<ResultNode> {
-    let mut types: BTreeMap<&str, usize> = BTreeMap::new();
-    for artifact in artifacts {
-        *types.entry(artifact.artifact_type.as_str()).or_default() += 1;
+fn photo_row(display: &str, record: &PhotoRecord) -> PhotoRow {
+    let metadata = &record.fields;
+    let latitude = metadata.latitude.as_ref();
+    let longitude = metadata.longitude.as_ref();
+    let altitude = metadata.altitude.as_ref();
+    let (png_width, png_height) = metadata
+        .png_dimensions
+        .map(|(width, height)| (Some(i64::from(width)), Some(i64::from(height))))
+        .unwrap_or((None, None));
+    let mut png_texts: Vec<String> = record
+        .png_texts
+        .iter()
+        .map(|text| {
+            format!(
+                "{}@0x{:x}={}{}",
+                text.chunk_type,
+                text.offset,
+                text.key,
+                if text.truncated {
+                    "(未解压/已截断)"
+                } else {
+                    ""
+                }
+            )
+        })
+        .collect();
+    png_texts.truncate(4096);
+    PhotoRow {
+        path: display.to_owned(),
+        name: record.name.clone(),
+        format: match record.format {
+            RealFormat::Jpeg => "jpeg",
+            RealFormat::Png => "png",
+            RealFormat::Heic => "heic",
+            RealFormat::Heif => "heif",
+            RealFormat::Unknown => "unknown",
+        }
+        .to_owned(),
+        container: record.container.clone(),
+        declared_extension: record.extension.label().to_owned(),
+        extension_mismatch: record.extension_mismatch,
+        size: record.size,
+        sha256: record.sha256.clone(),
+        exif_present: record.exif_present,
+        gps_present: metadata.has_gps(),
+        gps_ref_defaulted: latitude.map(|c| c.ref_defaulted).unwrap_or(false)
+            || longitude.map(|c| c.ref_defaulted).unwrap_or(false)
+            || altitude.map(|a| a.ref_defaulted).unwrap_or(false),
+        datetime_original_raw: metadata
+            .datetime_original
+            .as_ref()
+            .map(|time| time.raw.clone()),
+        datetime_original_offset: metadata
+            .datetime_original
+            .as_ref()
+            .and_then(|time| time.offset_time.clone()),
+        datetime_original_precision: metadata
+            .datetime_original
+            .as_ref()
+            .map(|time| time.precision.to_owned()),
+        capture_time: metadata
+            .datetime_original
+            .as_ref()
+            .and_then(|time| exif_local_timestamp(&time.raw)),
+        datetime_raw: metadata.datetime.as_ref().map(|time| time.raw.clone()),
+        datetime_digitized_raw: metadata
+            .datetime_digitized
+            .as_ref()
+            .map(|time| time.raw.clone()),
+        make: metadata.make.as_ref().map(|value| value.value.clone()),
+        model: metadata.model.as_ref().map(|value| value.value.clone()),
+        lens_model: metadata
+            .lens_model
+            .as_ref()
+            .map(|value| value.value.clone()),
+        software: metadata.software.as_ref().map(|value| value.value.clone()),
+        image_width: metadata
+            .image_width
+            .as_ref()
+            .map(|(width, _)| *width as i64),
+        image_height: metadata
+            .image_height
+            .as_ref()
+            .map(|(height, _)| *height as i64),
+        png_width,
+        png_height,
+        orientation: metadata
+            .orientation
+            .as_ref()
+            .map(|(code, _, _)| i64::from(*code)),
+        orientation_label: metadata
+            .orientation
+            .as_ref()
+            .map(|(_, label, _)| label.clone()),
+        latitude_ref: latitude.and_then(|coordinate| coordinate.reference.clone()),
+        latitude_dms: latitude.map(dms_text),
+        latitude_decimal: latitude.map(|coordinate| coordinate.decimal),
+        longitude_ref: longitude.and_then(|coordinate| coordinate.reference.clone()),
+        longitude_dms: longitude.map(dms_text),
+        longitude_decimal: longitude.map(|coordinate| coordinate.decimal),
+        altitude: altitude.map(|altitude| altitude.signed_meters),
+        altitude_raw: altitude.map(|altitude| altitude.meters),
+        altitude_ref: altitude.and_then(|altitude| altitude.reference.clone()),
+        gps_timestamp: metadata.gps_timestamp.clone(),
+        gps_datestamp: metadata.gps_datestamp.clone(),
+        gps_satellites: metadata
+            .gps_satellites
+            .as_ref()
+            .map(|value| value.value.clone()),
+        missing: metadata
+            .missing()
+            .iter()
+            .map(|name| (*name).to_owned())
+            .collect(),
+        origin: Some(collect_origins(metadata).join("; ")).filter(|text| !text.is_empty()),
+        exif_carrier: record
+            .exif_block
+            .as_ref()
+            .map(|block| block.carrier.to_owned()),
+        container_offset: record
+            .exif_block
+            .as_ref()
+            .map(|block| u64::from(block.container_offset)),
+        tiff_offset: record
+            .exif_block
+            .as_ref()
+            .map(|block| u64::from(block.tiff_offset)),
+        byte_order: record
+            .exif_block
+            .as_ref()
+            .map(|block| block.block.byte_order.to_owned()),
+        ifd_offsets: record.exif_block.as_ref().map(|block| {
+            block
+                .block
+                .ifd_offsets
+                .iter()
+                .map(|(kind, offset)| format!("{}@0x{offset:x}", kind.label()))
+                .collect::<Vec<_>>()
+                .join(",")
+        }),
+        tag_count: record
+            .exif_block
+            .as_ref()
+            .map(|block| block.block.tags.len() as i64)
+            .unwrap_or(0),
+        exif_candidates: record.exif_candidates as i64,
+        exif_skipped: record.skipped_exif.clone(),
+        xmp_offset: record.xmp.as_ref().map(|xmp| u64::from(xmp.offset)),
+        xmp_date: record.xmp.as_ref().and_then(|xmp| xmp.date_created.clone()),
+        xmp_tool: record.xmp.as_ref().and_then(|xmp| xmp.creator_tool.clone()),
+        xmp_truncated: record
+            .xmp
+            .as_ref()
+            .map(|xmp| xmp.packet_truncated)
+            .unwrap_or(false),
+        png_texts,
+        complete: record.warnings.is_empty(),
+        warnings: record.warnings.clone(),
     }
-    let mut nodes = Vec::new();
-    for artifact_type in types.keys() {
-        let (display, schema) = match *artifact_type {
-            "photo.exif" => ("照片元数据(EXIF/GPS)", report::PHOTO_COLUMNS),
-            "photo.issue" => ("照片解析失败/跳过", report::ISSUE_COLUMNS),
-            "photo.summary" => ("照片元数据汇总", &[] as &[(&str, &str)]),
-            other => {
-                nodes.push(ResultNode {
-                    node_type: other.to_owned(),
-                    name: other.to_owned(),
-                    columns: Vec::new(),
-                });
+}
+
+fn dms_text(coordinate: &Coordinate) -> String {
+    format!(
+        "{}°{}′{:.2}″",
+        coordinate.degrees, coordinate.minutes, coordinate.seconds
+    )
+}
+
+fn collect_origins(metadata: &MetadataFields) -> Vec<String> {
+    let mut origins = Vec::new();
+    let mut push = |label: &str, origin: Option<&Origin>| {
+        if let Some(origin) = origin {
+            origins.push(format!("{label}={}", origin.locator()));
+        }
+    };
+    push(
+        "datetime_original",
+        metadata.datetime_original.as_ref().map(|time| &time.origin),
+    );
+    push("make", metadata.make.as_ref().map(|value| &value.origin));
+    push("model", metadata.model.as_ref().map(|value| &value.origin));
+    push(
+        "lens_model",
+        metadata.lens_model.as_ref().map(|value| &value.origin),
+    );
+    push("image_width", metadata.image_width.as_ref().map(|(_, o)| o));
+    push(
+        "image_height",
+        metadata.image_height.as_ref().map(|(_, o)| o),
+    );
+    push(
+        "orientation",
+        metadata.orientation.as_ref().map(|(_, _, o)| o),
+    );
+    push("latitude", metadata.latitude.as_ref().map(|c| &c.origin));
+    push(
+        "latitude_ref",
+        metadata
+            .latitude
+            .as_ref()
+            .and_then(|c| c.reference_origin.as_ref()),
+    );
+    push("longitude", metadata.longitude.as_ref().map(|c| &c.origin));
+    push(
+        "longitude_ref",
+        metadata
+            .longitude
+            .as_ref()
+            .and_then(|c| c.reference_origin.as_ref()),
+    );
+    push("altitude", metadata.altitude.as_ref().map(|c| &c.origin));
+    push(
+        "altitude_ref",
+        metadata
+            .altitude
+            .as_ref()
+            .and_then(|c| c.reference_origin.as_ref()),
+    );
+    origins
+}
+
+/// Parses the EXIF `YYYY:MM:DD HH:MM:SS` shape into a time-zone-less local
+/// timestamp. Invalid or partial values yield `None`; the raw text is always
+/// kept in the record.
+fn exif_local_timestamp(raw: &str) -> Option<Timestamp> {
+    let (date, time) = raw.trim().split_once(' ')?;
+    let mut date_parts = date.split(':');
+    let year: i32 = date_parts.next()?.parse().ok()?;
+    let month: u32 = date_parts.next()?.parse().ok()?;
+    let day: u32 = date_parts.next()?.parse().ok()?;
+    if date_parts.next().is_some() {
+        return None;
+    }
+    let mut time_parts = time.split(':');
+    let hour: u32 = time_parts.next()?.parse().ok()?;
+    let minute: u32 = time_parts.next()?.parse().ok()?;
+    let second_text = time_parts.next()?;
+    if time_parts.next().is_some() {
+        return None;
+    }
+    let second: u32 = second_text
+        .split('.')
+        .next()
+        .and_then(|value| value.parse().ok())?;
+    Timestamp::local(year, month, day, hour, minute, second)
+}
+
+fn exif_files(run: &Run) -> Result<()> {
+    if run.inputs().is_empty() {
+        run.warn(
+            "INPUT_NOT_FOUND",
+            "没有选中任何照片（分析器声明扩展名 jpg、jpeg、png、heic、heif）",
+        )?;
+        run.set_summary("未找到可分析的照片");
+        return Ok(());
+    }
+    let options = RunOptions::read(run);
+    let mut emitter = Emitter::new(run, options);
+    for file in run.inputs() {
+        run.check_cancelled()?;
+        let display = display_name(file);
+        let outcome = parse_one(file, &display)?;
+        emitter.absorb(outcome, Some(file), &display, file.size())?;
+    }
+    emitter.finish("files", ANALYZER_FILES)
+}
+
+fn exif_evidence(run: &Run) -> Result<()> {
+    let view = run.require_view()?;
+    let options = RunOptions::read(run);
+    let max_files = options.max_files;
+    let mut emitter = Emitter::new(run, options);
+    let collected = collect_photos(run, view, max_files)?;
+    if collected.over_limit > 0 {
+        emitter.summary.skipped_beyond_limit += collected.over_limit;
+    }
+    if collected.depth_limited > 0 {
+        run.warn(
+            "DEPTH_LIMIT",
+            format!(
+                "{} 个目录超过深度上限 {MAX_DEPTH}，未展开",
+                collected.depth_limited
+            ),
+        )?;
+    }
+    if collected.walk_failures > 0 {
+        run.warn(
+            "WALK_FAILED",
+            format!("{} 个目录无法枚举，已跳过", collected.walk_failures),
+        )?;
+    }
+    if collected.paths.is_empty() {
+        run.warn(
+            "NO_PHOTO_FOUND",
+            format!(
+                "遍历 {} 个目录后未找到 jpg/jpeg/png/heic/heif 文件",
+                collected.directories
+            ),
+        )?;
+    }
+    let total = collected.paths.len();
+    for (index, path) in collected.paths.iter().enumerate() {
+        run.check_cancelled()?;
+        if index % 200 == 0 {
+            run.progress(index as u64 + 1, Some(total as u64), Some(path))?;
+        }
+        let Some(file) = view.open(path)? else {
+            emitter.summary.record_failure("not_found");
+            emitter.emit_issue(
+                None,
+                path,
+                "not_found",
+                "枚举后文件不再存在或不是普通文件",
+                0,
+            )?;
+            continue;
+        };
+        let size = file.size();
+        if size == 0 {
+            emitter.summary.record_failure("empty");
+            emitter.emit_issue(Some(&file), path, "empty", "文件长度为 0", 0)?;
+            continue;
+        }
+        let outcome = parse_one(&file, path)?;
+        emitter.absorb(outcome, Some(&file), path, size)?;
+    }
+    emitter.finish("evidence", ANALYZER_EVIDENCE)
+}
+
+fn parse_one(file: &FileRef, display: &str) -> Result<Outcome> {
+    if file.size() == 0 {
+        return Ok(Outcome::Rejected(container::ContainerError::new(
+            exif::reason::TRUNCATED,
+            "文件为空",
+        )));
+    }
+    if file.size() > MAX_PHOTO_BYTES {
+        return Ok(Outcome::Rejected(container::ContainerError::new(
+            "too_large",
+            format!("文件 {} 字节超过单文件上限 {MAX_PHOTO_BYTES}", file.size()),
+        )));
+    }
+    let bytes = match file.read_all(MAX_PHOTO_BYTES) {
+        Ok(bytes) => bytes,
+        Err(error) => {
+            return Ok(Outcome::Rejected(container::ContainerError::new(
+                "read_failed",
+                format!("读取失败（{}）", error.message),
+            )));
+        }
+    };
+    Ok(parse_file(display, &bytes))
+}
+
+struct CollectedPhotos {
+    paths: Vec<String>,
+    directories: usize,
+    over_limit: usize,
+    depth_limited: usize,
+    walk_failures: usize,
+}
+
+/// Recursive evidence walk. Candidates are selected by extension only; the
+/// real format check happens after reading the file header.
+fn collect_photos(run: &Run, view: &View, max_files: usize) -> Result<CollectedPhotos> {
+    let mut paths = Vec::new();
+    let mut directories = 0usize;
+    let mut over_limit = 0usize;
+    let mut depth_limited = 0usize;
+    let mut walk_failures = 0usize;
+    let mut stack = vec![(String::new(), 0usize)];
+    while let Some((directory, depth)) = stack.pop() {
+        run.check_cancelled()?;
+        directories += 1;
+        if directories > MAX_DIRECTORIES {
+            run.warn(
+                "DIRECTORY_LIMIT",
+                format!("目录数超过 {MAX_DIRECTORIES}，已停止枚举"),
+            )?;
+            break;
+        }
+        let nodes = match view.list(&directory) {
+            Ok(nodes) => nodes,
+            Err(error) if error.is_cancelled() => return Err(error),
+            Err(_) => {
+                walk_failures += 1;
                 continue;
             }
         };
-        let matching: Vec<&Artifact> = artifacts
-            .iter()
-            .filter(|artifact| artifact.artifact_type == *artifact_type)
-            .collect();
-        let mut columns = Vec::new();
-        for (key, label) in schema.iter().take(MAX_COLUMNS) {
-            if matching.iter().any(|artifact| {
-                artifact
-                    .attributes
-                    .get(key)
-                    .is_some_and(|value| !matches!(value, Value::Nil))
-            }) {
-                columns.push(ResultColumn {
-                    key: (*key).to_owned(),
-                    label: (*label).to_owned(),
-                });
+        for node in nodes {
+            if node.deleted || node.link_target.is_some() {
+                continue;
             }
-        }
-        nodes.push(ResultNode {
-            node_type: (*artifact_type).to_owned(),
-            name: display.to_owned(),
-            columns,
-        });
-    }
-    nodes
-}
-
-// ---------------------------------------------------------------------------
-// File analyzer (single photo)
-// ---------------------------------------------------------------------------
-
-pub struct PhotoMetadataFile;
-
-impl FileAnalyzer for PhotoMetadataFile {
-    fn analyzer(&self) -> &str {
-        FILE_ANALYZER
-    }
-
-    fn analyze(&self, file: &File) -> Result<AnalysisResult> {
-        if file.size() > MAX_PHOTO_BYTES {
-            return Err(lovelycarve_plugin::Error::new(
-                "RESOURCE_LIMIT",
-                format!("文件 {} 字节超过单文件上限 {MAX_PHOTO_BYTES}", file.size()),
-            ));
-        }
-        let name = if file.name().is_empty() {
-            "unknown".to_owned()
-        } else {
-            file.name().to_owned()
-        };
-        let length = usize::try_from(file.size()).unwrap_or(usize::MAX);
-        let bytes = file.read(0, length)?;
-        if bytes.len() as u64 != file.size() {
-            return Err(lovelycarve_plugin::Error::new(
-                "SHORT_READ",
-                format!("读取 {} 字节，声明 {} 字节", bytes.len(), file.size()),
-            ));
-        }
-        let outcome = record::parse_file(&name, &bytes);
-        let mut summary = RunSummary::default();
-        accumulate(&mut summary, &outcome);
-        summary.finish();
-        let mut artifacts = Vec::new();
-        let mut findings = Vec::new();
-        let result_summary;
-        match outcome {
-            Outcome::Photo(mut record) => {
-                record.root_id = format!("file:{}", file.id());
-                // `accumulate` already recorded a missing-EXIF reason; only the
-                // per-record warnings are handled here.
-                if !record.warnings.is_empty() {
-                    let mut attributes: Attributes = Attributes::new();
-                    attributes.insert("source.path", record.path.clone());
-                    attributes.insert("photo.path", record.path.clone());
-                    findings.push(Finding {
-                        severity: Severity::Low,
-                        title: format!("{} 记录不完整", record.path),
-                        description: record.warnings.join("；"),
-                        attributes,
-                    });
+            let child = if directory.is_empty() {
+                node.name.clone()
+            } else {
+                format!("{directory}/{}", node.name)
+            };
+            if node.is_dir() {
+                if depth < MAX_DEPTH {
+                    stack.push((child, depth + 1));
+                } else {
+                    depth_limited += 1;
                 }
-                artifacts.push(report::photo_artifact(&record));
-                summary.finish();
-                result_summary = summary.text.clone();
+                continue;
             }
-            Outcome::Rejected(error) => {
-                result_summary = format!("解析失败[{}]：{}", error.reason, error.message);
-                artifacts.push(issue_artifact(&name, error.reason, &error.message, file.size()));
+            if !node.is_file() || node.size == 0 {
+                continue;
             }
-            Outcome::NotPhoto { detail, format } => {
-                result_summary = format!("非图片内容：{detail}");
-                artifacts.push(issue_artifact(&name, "not_image", &detail, file.size()));
-                findings.push(Finding {
-                    severity: Severity::Medium,
-                    title: format!("{name} 扩展名与内容不符"),
-                    description: format!(
-                        "扩展名声称照片，真实格式 {}（{}）",
-                        format.label(),
-                        detail
-                    ),
-                    attributes: [("source.path", name.as_str())]
-                        .into_iter()
-                        .collect(),
-                });
+            if ExtensionKind::from_name(&node.name).is_none() {
+                continue;
             }
-            Outcome::NotCandidate => {
-                result_summary = "扩展名不在 jpg/jpeg/png/heic/heif 内，未按照片解析".to_owned();
-                artifacts.push(issue_artifact(
-                    &name,
-                    "extension_not_photo",
-                    &result_summary,
-                    file.size(),
-                ));
+            if paths.len() >= max_files {
+                over_limit += 1;
+                continue;
             }
+            paths.push(child);
         }
-        let nodes = result_nodes(&artifacts);
-        Ok(AnalysisResult {
-            summary: Some(format!("{result_summary}；文件 {name}")),
-            nodes,
-            artifacts,
-            timeline: Vec::new(),
-            findings,
-        })
     }
+    paths.sort();
+    paths.dedup();
+    Ok(CollectedPhotos {
+        paths,
+        directories,
+        over_limit,
+        depth_limited,
+        walk_failures,
+    })
 }
 
-fn issue_artifact(path: &str, reason: &str, text: &str, size: u64) -> Artifact {
-    let mut attributes: Attributes = Attributes::new();
-    attributes.insert("source.path", path);
-    attributes.insert("photo.path", path);
-    attributes.insert("photo.reason", reason);
-    attributes.insert("photo.reason_text", text);
-    attributes.insert("photo.bytes", size);
-    Artifact {
-        artifact_type: "photo.issue".to_owned(),
-        title: format!("{path} [{reason}]"),
-        value: Some(Value::from(path)),
-        attributes,
+fn display_name(file: &FileRef) -> String {
+    let name = file.name().trim();
+    if !name.is_empty() {
+        return name.replace('\\', "/");
     }
+    file.view_path()
+        .or_else(|| file.root_path())
+        .map(|path| path.replace('\\', "/"))
+        .unwrap_or_else(|| file.id().to_owned())
 }
 
 fn plugin() -> Plugin {
-    Plugin::new(PLUGIN_ID, PLUGIN_NAME, env!("CARGO_PKG_VERSION"))
-        .evidence_analyzer(PhotoMetadataEvidence)
-        .file_analyzer(PhotoMetadataFile)
+    Plugin::new("org.ljnljn.exif-photo")
+        .record::<PhotoRow>()
+        .record::<IssueRow>()
+        .record::<SummaryRow>()
+        .analyzer(ANALYZER_FILES, exif_files)
+        .analyzer(ANALYZER_EVIDENCE, exif_evidence)
 }
 
 export_plugin!(plugin);

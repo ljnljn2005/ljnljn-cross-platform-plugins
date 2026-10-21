@@ -1,39 +1,30 @@
 [package]
-name = "ljnljn-weblog-sqli-param-detect-30a22be5"
+name = "ljnljn-weblog-sqli"
 version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-only"
-description = "LovelyCarve offline web access-log parser and SQL-injection query-parameter detector"
+description = "LovelyCarve LPP v2 analyzer: Web access-log SQL-injection query-parameter candidates"
 publish = false
 
 [lib]
-name = "ljnljn_kb_weblog_sqli_param_detect_30a22be5"
+name = "ljnljn_weblog_sqli"
 crate-type = ["cdylib", "rlib"]
 
-# Standalone offline self-check / manual run over a plain file. It is NOT a
-# host interface: the plugin itself only ever sees SDK handles.
-[[bin]]
-name = "weblog-sqli-param-detect"
-path = "src/main.rs"
-
 [dependencies]
-# Official LovelyCarve plugin SDK (crate `lovelycarve-plugin`), pinned by
-# carve-plugins/SDK-SOURCE.json.
-lovelycarve-plugin = { path = "../../sdk-v1/sdk" }
+lovelycarve-plugin = { path = "../../sdk-v2/sdk" }
+# GBK/GB18030 log files emitted by Chinese Web servers.
 encoding_rs = "0.8"
+# Explainable feature-family matching and the line layout.
 regex = "1"
 
+[dev-dependencies]
+lovelycarve-plugin = { path = "../../sdk-v2/sdk", features = ["testing"] }
+
 [lints.rust]
-# MSVC link.exe reports the import library it creates for every DLL.
 linker_messages = "allow"
 
 [lints.clippy]
 uninlined_format_args = "warn"
-
-[profile.release]
-# The SDK turns panics into LPP errors at the C ABI boundary, which needs
-# unwinding in shipped builds too.
-panic = "unwind"
 
 [workspace]
 

@@ -248,12 +248,7 @@ fn quoted_sequence(rest: &str) -> (usize, bool, Option<String>, Option<String>) 
     }
     let referer = values.first().filter(|value| !is_dash(value)).cloned();
     let user_agent = values.get(1).filter(|value| !is_dash(value)).cloned();
-    (
-        values.len(),
-        !cursor.trim().is_empty(),
-        referer,
-        user_agent,
-    )
+    (values.len(), !cursor.trim().is_empty(), referer, user_agent)
 }
 
 fn is_dash(value: &str) -> bool {

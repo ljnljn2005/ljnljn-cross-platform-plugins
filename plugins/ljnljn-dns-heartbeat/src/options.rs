@@ -113,7 +113,9 @@ mod tests {
 
     #[test]
     fn defaults_come_from_the_requirement_text() {
-        let options = AnalysisOptions::default().normalized().expect("默认参数合法");
+        let options = AnalysisOptions::default()
+            .normalized()
+            .expect("默认参数合法");
         assert_eq!(options.min_samples, 5);
         assert_eq!(options.tolerance, 0.1);
         assert_eq!(options.stability_threshold, 0.8);

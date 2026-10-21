@@ -130,9 +130,9 @@ pub fn head_looks_like_zip(head: &[u8]) -> bool {
 /// 包是否为 xlsx/xlsm：有 `xl/workbook.xml` 或 `xl/worksheets/` 成员。
 pub fn workbook_shape<B: Blob + ?Sized>(blob: &B) -> bool {
     match read_entries_from(blob) {
-        Ok(entries) => entries
-            .iter()
-            .any(|entry| entry.name == "xl/workbook.xml" || entry.name.starts_with("xl/worksheets/")),
+        Ok(entries) => entries.iter().any(|entry| {
+            entry.name == "xl/workbook.xml" || entry.name.starts_with("xl/worksheets/")
+        }),
         Err(_) => false,
     }
 }
@@ -243,7 +243,9 @@ pub fn at_input_limit(count: usize) -> bool {
 }
 
 /// 读取 `xl/workbook.xml` 的结构（纯解析层入口，供 `hostio` 调用）。
-pub fn load_workbook<B: Blob + ?Sized>(blob: &B) -> Result<crate::xlsx::Workbook, crate::error::DedupError> {
+pub fn load_workbook<B: Blob + ?Sized>(
+    blob: &B,
+) -> Result<crate::xlsx::Workbook, crate::error::DedupError> {
     read_workbook(blob)
 }
 
@@ -281,10 +283,7 @@ mod tests {
         )]);
         assert_eq!(
             parse_targets(&params),
-            vec![
-                "Users/a/顺丰1k.zip".to_string(),
-                "Users/b".to_string()
-            ]
+            vec!["Users/a/顺丰1k.zip".to_string(), "Users/b".to_string()]
         );
         let array = crate::value::map([(
             "targets",

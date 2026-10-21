@@ -25,7 +25,11 @@ const MAX_VLAN_TAGS: usize = 2;
 #[derive(Clone, Debug, PartialEq)]
 pub enum Transport {
     /// UDP 载荷（已剥离 8 字节 UDP 头）。
-    Udp { src_port: u16, dst_port: u16, payload: Vec<u8> },
+    Udp {
+        src_port: u16,
+        dst_port: u16,
+        payload: Vec<u8>,
+    },
     /// 该帧不是 UDP / 不是本版支持的协议；`reason` 为稳定原因码。
     Unsupported { reason: &'static str },
 }
@@ -97,11 +101,7 @@ fn extract_udp_from_ip(ip: &[u8]) -> Transport {
     }
     match ip[0] >> 4 {
         4 => {}
-        6 => {
-            return Transport::Unsupported {
-                reason: SKIP_IPV6,
-            }
-        }
+        6 => return Transport::Unsupported { reason: SKIP_IPV6 },
         _ => {
             return Transport::Unsupported {
                 reason: SKIP_NOT_IPV4,
@@ -139,9 +139,7 @@ fn extract_udp_from_ip(ip: &[u8]) -> Transport {
     let protocol = ip[9];
     match protocol {
         17 => {}
-        6 => {
-            return Transport::Unsupported { reason: SKIP_TCP }
-        }
+        6 => return Transport::Unsupported { reason: SKIP_TCP },
         _ => {
             return Transport::Unsupported {
                 reason: SKIP_NOT_UDP,
@@ -224,7 +222,10 @@ mod tests {
             }
             other => panic!("应提取到 UDP: {other:?}"),
         }
-        assert_eq!(payload_of(extract_udp(DLT_RAW, &ip)), Some(b"\x12\x34dns".to_vec()));
+        assert_eq!(
+            payload_of(extract_udp(DLT_RAW, &ip)),
+            Some(b"\x12\x34dns".to_vec())
+        );
     }
 
     #[test]
@@ -237,7 +238,10 @@ mod tests {
         frame.extend_from_slice(&[0x00, 0x65]);
         frame.extend_from_slice(&ETHERTYPE_IPV4.to_be_bytes());
         frame.extend_from_slice(&ip);
-        assert_eq!(payload_of(extract_udp(DLT_EN10MB, &frame)), Some(b"x".to_vec()));
+        assert_eq!(
+            payload_of(extract_udp(DLT_EN10MB, &frame)),
+            Some(b"x".to_vec())
+        );
     }
 
     #[test]

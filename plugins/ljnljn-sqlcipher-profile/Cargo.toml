@@ -1,30 +1,27 @@
 [package]
-name = "ljnljn-sqlcipher-header-profile-1cb485b2"
+name = "ljnljn-sqlcipher-profile"
 version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-only"
-description = "LovelyCarve 文件分析器：SQLCipher 4 / 明文 SQLite 文件头结构指纹与参数画像"
+description = "LovelyCarve LPP v2 analyzer: SQLCipher 4 header profile and optional first-page HMAC check"
 publish = false
 
 [lib]
-# crate-type 同时带 rlib：cdylib 供宿主加载，rlib 让 `cargo test` 能链接测试。
-name = "ljnljn_kb_sqlcipher_header_profile_1cb485b2"
+name = "ljnljn_sqlcipher_profile"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# 已核实的官方 SDK crate（name = "lovelycarve-plugin"）。不做法外依赖：
-# 路径来自本机既有共享副本 workspaces/_plugin-gen/_sdk/sdk（来源见 SDK-SOURCE.json）。
-lovelycarve-plugin = { path = "../../sdk-v1/sdk" }
+lovelycarve-plugin = { path = "../../sdk-v2/sdk" }
+
+[dev-dependencies]
+lovelycarve-plugin = { path = "../../sdk-v2/sdk", features = ["testing"] }
 
 [lints.rust]
-# MSVC link.exe 会为每个 DLL 输出 import library 提示。
 linker_messages = "allow"
 
 [lints.clippy]
 uninlined_format_args = "warn"
 
-# 本工程位于插件工作区目录树之内，显式声明自己是独立 workspace 根，
-# 避免被上层未知的 Cargo.toml 意外纳入。
 [workspace]
 
 [workspace.package]

@@ -1,0 +1,304 @@
+{
+  "protocol": 2,
+  "plugin": "org.ljnljn.weblog-sqli",
+  "sdk": "0.2.0",
+  "analyzers": [
+    "weblog_files",
+    "weblog_evidence"
+  ],
+  "filesystems": [],
+  "records": [
+    {
+      "type": "profile.fact",
+      "label": "检材画像",
+      "title": "{key}",
+      "fields": [
+        {
+          "id": "key",
+          "label": "键",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "value",
+          "label": "值",
+          "kind": "json"
+        },
+        {
+          "id": "system",
+          "label": "系统",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "weblog.document",
+      "label": "Web 访问日志",
+      "title": "{file}",
+      "fields": [
+        {
+          "id": "file",
+          "label": "文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "encoding",
+          "label": "编码",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "utf8",
+              "label": "UTF-8"
+            },
+            {
+              "id": "utf16le",
+              "label": "UTF-16LE"
+            },
+            {
+              "id": "utf16be",
+              "label": "UTF-16BE"
+            },
+            {
+              "id": "gb18030",
+              "label": "GB18030"
+            }
+          ]
+        },
+        {
+          "id": "file_size",
+          "label": "文件大小",
+          "kind": "size"
+        },
+        {
+          "id": "total_lines",
+          "label": "总行数",
+          "kind": "int"
+        },
+        {
+          "id": "parsed_lines",
+          "label": "已解析行",
+          "kind": "int"
+        },
+        {
+          "id": "unparsed_lines",
+          "label": "未解析行",
+          "kind": "int"
+        },
+        {
+          "id": "combined_lines",
+          "label": "combined 行",
+          "kind": "int"
+        },
+        {
+          "id": "common_lines",
+          "label": "common 行",
+          "kind": "int"
+        },
+        {
+          "id": "other_lines",
+          "label": "其它格式行",
+          "kind": "int"
+        },
+        {
+          "id": "first_seen",
+          "label": "首次请求",
+          "kind": "timestamp",
+          "timeline": "request"
+        },
+        {
+          "id": "last_seen",
+          "label": "末次请求",
+          "kind": "timestamp",
+          "timeline": "request"
+        },
+        {
+          "id": "year_months",
+          "label": "涉及年月",
+          "kind": "list"
+        },
+        {
+          "id": "users",
+          "label": "ident/user",
+          "kind": "list"
+        },
+        {
+          "id": "replacement_count",
+          "label": "解码替换字符数",
+          "kind": "int"
+        },
+        {
+          "id": "truncated",
+          "label": "内容被截断",
+          "kind": "bool"
+        },
+        {
+          "id": "notes",
+          "label": "说明",
+          "kind": "text"
+        },
+        {
+          "id": "unparsed_reasons",
+          "label": "未解析原因",
+          "kind": "json"
+        },
+        {
+          "id": "candidate_count",
+          "label": "可疑候选数",
+          "kind": "int"
+        }
+      ]
+    },
+    {
+      "type": "weblog.candidate",
+      "label": "可疑注入参数",
+      "title": "{method} {path} ? {param}",
+      "fields": [
+        {
+          "id": "method",
+          "label": "方法",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "path",
+          "label": "路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "param",
+          "label": "参数名",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "location",
+          "label": "位置",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "query",
+              "label": "查询参数"
+            }
+          ]
+        },
+        {
+          "id": "family",
+          "label": "命中特征族",
+          "kind": "text"
+        },
+        {
+          "id": "family_count",
+          "label": "特征族数",
+          "kind": "int"
+        },
+        {
+          "id": "methods",
+          "label": "方法集合",
+          "kind": "list"
+        },
+        {
+          "id": "request_count",
+          "label": "请求数",
+          "kind": "int"
+        },
+        {
+          "id": "window_requests",
+          "label": "窗口内请求数",
+          "kind": "int"
+        },
+        {
+          "id": "distinct_ips",
+          "label": "客户端 IP 数",
+          "kind": "int"
+        },
+        {
+          "id": "window_ips",
+          "label": "窗口内 IP 数",
+          "kind": "int"
+        },
+        {
+          "id": "first_seen",
+          "label": "首次请求",
+          "kind": "timestamp",
+          "timeline": "request"
+        },
+        {
+          "id": "last_seen",
+          "label": "末次请求",
+          "kind": "timestamp",
+          "timeline": "request"
+        },
+        {
+          "id": "window_first_seen",
+          "label": "窗口起始",
+          "kind": "timestamp",
+          "timeline": "request"
+        },
+        {
+          "id": "window_last_seen",
+          "label": "窗口结束",
+          "kind": "timestamp",
+          "timeline": "request"
+        },
+        {
+          "id": "confidence",
+          "label": "置信度（0-1）",
+          "kind": "float"
+        },
+        {
+          "id": "line_start",
+          "label": "证据起始行",
+          "kind": "int"
+        },
+        {
+          "id": "line_end",
+          "label": "证据结束行",
+          "kind": "int"
+        },
+        {
+          "id": "text_offset_start",
+          "label": "解码后文本起始偏移",
+          "kind": "size"
+        },
+        {
+          "id": "text_offset_end",
+          "label": "解码后文本结束偏移（不含）",
+          "kind": "size"
+        },
+        {
+          "id": "source_exact",
+          "label": "来源偏移精确",
+          "kind": "bool"
+        },
+        {
+          "id": "status_distribution",
+          "label": "窗口状态码分布",
+          "kind": "json"
+        },
+        {
+          "id": "samples",
+          "label": "样例行",
+          "kind": "json"
+        },
+        {
+          "id": "sample_value",
+          "label": "解码后样例",
+          "kind": "text"
+        },
+        {
+          "id": "sample_raw_value",
+          "label": "原始编码样例",
+          "kind": "text"
+        },
+        {
+          "id": "verdict",
+          "label": "判定依据",
+          "kind": "text"
+        }
+      ]
+    }
+  ],
+  "schema_hash": "fnv1a64:769c4e7f918abdde"
+}

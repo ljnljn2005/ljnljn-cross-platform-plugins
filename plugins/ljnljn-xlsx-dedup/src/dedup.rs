@@ -200,7 +200,7 @@ impl Accumulator {
 
     pub fn note(&mut self, message: impl Into<String>) {
         let message = message.into();
-        if !self.limitations.iter().any(|existing| *existing == message) {
+        if !self.limitations.contains(&message) {
             self.limitations.push(message);
         }
     }
@@ -313,7 +313,8 @@ impl Accumulator {
             file_report
                 .skipped_sheets
                 .push(format!("{}（{}）", sheet.name, error.code));
-            self.skipped_sheets.push(format!("{label}（{}）", error.code));
+            self.skipped_sheets
+                .push(format!("{label}（{}）", error.code));
             self.note(message);
             self.sheets.push(SheetReport {
                 link: Some(link),
@@ -553,9 +554,7 @@ impl Accumulator {
             groups.truncate(MAX_DUPLICATE_GROUPS);
         }
         if self.incomplete_shown.len() >= MAX_INCOMPLETE_SHOWN {
-            self.note(format!(
-                "缺失项行明细只返回前 {MAX_INCOMPLETE_SHOWN} 行"
-            ));
+            self.note(format!("缺失项行明细只返回前 {MAX_INCOMPLETE_SHOWN} 行"));
         }
         let header_source = header_summary(&self.sheets);
         let mut limitations = std::mem::take(&mut self.limitations);
@@ -614,7 +613,11 @@ fn summary_string(participated: &[&SheetReport]) -> Option<String> {
     }
     let headers = participated
         .iter()
-        .filter(|s| s.header.as_ref().is_some_and(|h| h.source == HeaderSource::Header))
+        .filter(|s| {
+            s.header
+                .as_ref()
+                .is_some_and(|h| h.source == HeaderSource::Header)
+        })
         .count();
     let positional = participated.len() - headers;
     Some(if positional == 0 {
@@ -643,8 +646,6 @@ mod tests {
     use crate::fixtures::{
         xlsx_bytes, xlsx_parts, zip_bytes, Cell, RowSpec, SheetSpec, WorkbookSpec, ZipOptions,
     };
-    use crate::report::{present, NODE_DUPLICATE, NODE_SHEET, NODE_SOURCE_FILE};
-    use lovelycarve_plugin::Value;
 
     /// 在内存里跑完整链路：zip 容器 → 工作簿 → 工作表 → 去重聚合。
     fn parse(display: &str, bytes: &[u8]) -> Aggregation {
@@ -697,7 +698,13 @@ mod tests {
                 person_row(2, "1", "张三", "13800138000", "北京市海淀区中关村大街1号"),
                 person_row(3, "2", "李四", "13900139000", "上海市浦东新区世纪大道100号"),
                 // 与第 2 行同一人：电话分隔符、地址全角数字都应被规范化后合并。
-                person_row(4, "3", "张三", "138-0013-8000", "北京市海淀区中关村大街１号"),
+                person_row(
+                    4,
+                    "3",
+                    "张三",
+                    "138-0013-8000",
+                    "北京市海淀区中关村大街１号",
+                ),
                 person_row(5, "4", "王五", "13700137000", "广州市天河区体育西路1号"),
             ],
         )
@@ -708,7 +715,11 @@ mod tests {
         let spec = WorkbookSpec::new(vec![sample_sheet()], Vec::new());
         let aggregation = parse("收件人.xlsx", &xlsx_bytes(&spec, ZipOptions::default()));
 
-        assert!(aggregation.rejected.is_empty(), "{:?}", aggregation.rejected);
+        assert!(
+            aggregation.rejected.is_empty(),
+            "{:?}",
+            aggregation.rejected
+        );
         assert_eq!(aggregation.total_rows, 5, "表头行 + 4 个数据行");
         assert_eq!(aggregation.valid_rows, 4);
         assert_eq!(aggregation.unique_count, 3);
@@ -795,7 +806,11 @@ mod tests {
         );
         let aggregation = parse("空表.xlsx", &xlsx_bytes(&spec, ZipOptions::default()));
 
-        assert!(aggregation.rejected.is_empty(), "{:?}", aggregation.rejected);
+        assert!(
+            aggregation.rejected.is_empty(),
+            "{:?}",
+            aggregation.rejected
+        );
         // 只有表头行的表：总行数 1，没有有效/缺项行。
         assert_eq!(aggregation.total_rows, 4, "1 + 0 + 3");
         assert_eq!(aggregation.valid_rows, 0);
@@ -825,7 +840,10 @@ mod tests {
                 .count(),
             2
         );
-        assert_eq!(aggregation.incomplete_shown[0].missing, vec![Field::Address]);
+        assert_eq!(
+            aggregation.incomplete_shown[0].missing,
+            vec![Field::Address]
+        );
     }
 
     #[test]
@@ -833,7 +851,11 @@ mod tests {
         let spec = WorkbookSpec::new(Vec::new(), Vec::new());
         let aggregation = parse("空工作簿.xlsx", &xlsx_bytes(&spec, ZipOptions::default()));
 
-        assert!(aggregation.rejected.is_empty(), "{:?}", aggregation.rejected);
+        assert!(
+            aggregation.rejected.is_empty(),
+            "{:?}",
+            aggregation.rejected
+        );
         assert!(aggregation.is_empty());
         assert_eq!(aggregation.total_rows, 0);
         assert_eq!(aggregation.valid_rows, 0);
@@ -881,7 +903,11 @@ mod tests {
         );
         let aggregation = parse("共享字符串.xlsx", &xlsx_bytes(&spec, ZipOptions::default()));
 
-        assert!(aggregation.rejected.is_empty(), "{:?}", aggregation.rejected);
+        assert!(
+            aggregation.rejected.is_empty(),
+            "{:?}",
+            aggregation.rejected
+        );
         assert_eq!(aggregation.header_source.as_deref(), Some("header"));
         assert_eq!(aggregation.total_rows, 2);
         assert_eq!(aggregation.valid_rows, 1);
@@ -986,7 +1012,11 @@ mod tests {
             "坏表XML.xlsx",
             &zip_bytes(&broken_sheet_parts, ZipOptions::default()),
         );
-        assert!(aggregation.rejected.is_empty(), "{:?}", aggregation.rejected);
+        assert!(
+            aggregation.rejected.is_empty(),
+            "{:?}",
+            aggregation.rejected
+        );
         assert_eq!(aggregation.skipped_sheets.len(), 1);
         assert!(aggregation.skipped_sheets[0].contains("xlsx.sheet"));
         assert_eq!(aggregation.total_rows, 0);
@@ -1008,7 +1038,11 @@ mod tests {
         );
         let aggregation = parse("收件人.zip", &outer);
 
-        assert!(aggregation.rejected.is_empty(), "{:?}", aggregation.rejected);
+        assert!(
+            aggregation.rejected.is_empty(),
+            "{:?}",
+            aggregation.rejected
+        );
         assert_eq!(
             aggregation.files_parsed,
             vec!["收件人.zip::导出/顺丰1k.xlsx".to_owned()]
@@ -1027,63 +1061,6 @@ mod tests {
                 root: "part:0".to_owned(),
                 path: "收件人.zip".to_owned(),
             }
-        );
-
-        let presentation = present(&aggregation);
-        let duplicate = presentation
-            .result
-            .artifacts
-            .iter()
-            .find(|artifact| artifact.artifact_type == NODE_DUPLICATE)
-            .expect("duplicate artifact");
-        // 来源三元组：证据根 + 归档路径 + 包内条目，均可回溯。
-        assert_eq!(
-            duplicate.attributes.get("source.root"),
-            Some(&Value::from("part:0"))
-        );
-        assert_eq!(
-            duplicate.attributes.get("source.path"),
-            Some(&Value::from("收件人.zip"))
-        );
-        assert_eq!(
-            duplicate.attributes.get("source.archive"),
-            Some(&Value::from("收件人.zip"))
-        );
-        assert_eq!(
-            duplicate.attributes.get("source.entry"),
-            Some(&Value::from("导出/顺丰1k.xlsx"))
-        );
-        assert_eq!(
-            duplicate.attributes.get("sfxlsx.first_source"),
-            Some(&Value::from("收件人.zip::导出/顺丰1k.xlsx!Sheet1!2"))
-        );
-        let source_file = presentation
-            .result
-            .artifacts
-            .iter()
-            .find(|artifact| artifact.artifact_type == NODE_SOURCE_FILE)
-            .expect("source file artifact");
-        assert_eq!(
-            source_file.attributes.get("sfxlsx.file"),
-            Some(&Value::from("收件人.zip::导出/顺丰1k.xlsx"))
-        );
-        assert_eq!(
-            source_file.attributes.get("source.root"),
-            Some(&Value::from("part:0"))
-        );
-        let sheet = presentation
-            .result
-            .artifacts
-            .iter()
-            .find(|artifact| artifact.artifact_type == NODE_SHEET)
-            .expect("sheet artifact");
-        assert_eq!(
-            sheet.attributes.get("source.entry"),
-            Some(&Value::from("导出/顺丰1k.xlsx"))
-        );
-        assert_eq!(
-            sheet.attributes.get("source.root"),
-            Some(&Value::from("part:0"))
         );
     }
 }

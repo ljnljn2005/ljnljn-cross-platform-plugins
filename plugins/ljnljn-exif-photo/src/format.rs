@@ -27,6 +27,7 @@ impl RealFormat {
         }
     }
 
+    #[allow(dead_code)]
     pub fn mime(self) -> &'static str {
         match self {
             Self::Jpeg => "image/jpeg",
@@ -170,11 +171,23 @@ mod tests {
 
     #[test]
     fn extensions_are_case_insensitive_and_limited_to_photo_types() {
-        assert_eq!(ExtensionKind::from_name("IMG_0001.JPG"), Some(ExtensionKind::Jpeg));
-        assert_eq!(ExtensionKind::from_name("a.jpeg"), Some(ExtensionKind::Jpeg));
+        assert_eq!(
+            ExtensionKind::from_name("IMG_0001.JPG"),
+            Some(ExtensionKind::Jpeg)
+        );
+        assert_eq!(
+            ExtensionKind::from_name("a.jpeg"),
+            Some(ExtensionKind::Jpeg)
+        );
         assert_eq!(ExtensionKind::from_name("a.png"), Some(ExtensionKind::Png));
-        assert_eq!(ExtensionKind::from_name("a.HeIc"), Some(ExtensionKind::Heic));
-        assert_eq!(ExtensionKind::from_name("a.heif"), Some(ExtensionKind::Heif));
+        assert_eq!(
+            ExtensionKind::from_name("a.HeIc"),
+            Some(ExtensionKind::Heic)
+        );
+        assert_eq!(
+            ExtensionKind::from_name("a.heif"),
+            Some(ExtensionKind::Heif)
+        );
         assert_eq!(ExtensionKind::from_name("notes.txt"), None);
         assert_eq!(ExtensionKind::from_name("noext"), None);
         assert_eq!(ExtensionKind::from_name("dir.jpg/readme"), None);

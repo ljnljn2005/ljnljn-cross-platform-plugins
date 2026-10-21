@@ -110,9 +110,9 @@ fn sheet_xml(spec: &SheetSpec) -> String {
             let reference = format!("{}{}", column_letter(*column), row.number.unwrap_or(1));
             match cell {
                 Cell::Empty => xml.push_str(&format!("<c r=\"{reference}\"/>")),
-                Cell::Shared(index) => xml.push_str(&format!(
-                    "<c r=\"{reference}\" t=\"s\"><v>{index}</v></c>"
-                )),
+                Cell::Shared(index) => {
+                    xml.push_str(&format!("<c r=\"{reference}\" t=\"s\"><v>{index}</v></c>"))
+                }
                 Cell::Inline(text) => xml.push_str(&format!(
                     "<c r=\"{reference}\" t=\"inlineStr\"><is><t>{}</t></is></c>",
                     escape(text)
@@ -202,10 +202,7 @@ xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\">
     workbook.push_str("</sheets></workbook>");
     rels.push_str("</Relationships>");
     parts.push(("xl/workbook.xml".to_owned(), workbook.into_bytes()));
-    parts.push((
-        "xl/_rels/workbook.xml.rels".to_owned(),
-        rels.into_bytes(),
-    ));
+    parts.push(("xl/_rels/workbook.xml.rels".to_owned(), rels.into_bytes()));
 
     let mut sst = String::from(
         "<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\
@@ -349,11 +346,17 @@ mod tests {
             vec![
                 RowSpec::new(
                     1,
-                    vec![(0, Cell::Inline("姓名".to_owned())), (1, Cell::Inline("电话".to_owned()))],
+                    vec![
+                        (0, Cell::Inline("姓名".to_owned())),
+                        (1, Cell::Inline("电话".to_owned())),
+                    ],
                 ),
                 RowSpec::new(
                     2,
-                    vec![(0, Cell::Shared(0)), (1, Cell::Number("13800138000".to_owned()))],
+                    vec![
+                        (0, Cell::Shared(0)),
+                        (1, Cell::Number("13800138000".to_owned())),
+                    ],
                 ),
             ],
         );

@@ -91,7 +91,10 @@ pub fn scan_jpeg(data: &[u8]) -> Result<ParsedContainer, ContainerError> {
         ));
     }
     if !data.starts_with(&[0xFF, 0xD8]) {
-        return Err(ContainerError::new(reason::BAD_HEADER, "缺少 JPEG SOI 标记"));
+        return Err(ContainerError::new(
+            reason::BAD_HEADER,
+            "缺少 JPEG SOI 标记",
+        ));
     }
     let mut cursor = 2usize;
     let mut segments = 0usize;
@@ -187,7 +190,8 @@ pub fn scan_jpeg(data: &[u8]) -> Result<ParsedContainer, ContainerError> {
                         "0x{payload_start:x} 的 APP1 EXIF 长度 {} 超过上限 {MAX_APP1}，拒绝",
                         payload.len()
                     ));
-                } else if let Err(error) = accept_exif(&mut out, payload, payload_start as u32, "jpeg-app1")
+                } else if let Err(error) =
+                    accept_exif(&mut out, payload, payload_start as u32, "jpeg-app1")
                 {
                     if first_failure.is_none() {
                         first_failure = Some(error);
@@ -283,16 +287,16 @@ pub fn scan_png(data: &[u8]) -> Result<ParsedContainer, ContainerError> {
             // A PNG must end with IEND; stopping at EOF means it was cut short.
             return Err(ContainerError::new(
                 reason::TRUNCATED,
-                format!(
-                    "PNG 块表在文件尾结束（文件长 {}）但未遇到 IEND",
-                    data.len()
-                ),
+                format!("PNG 块表在文件尾结束（文件长 {}）但未遇到 IEND", data.len()),
             ));
         }
         let Some(head) = data.get(cursor..cursor + 8) else {
             return Err(ContainerError::new(
                 reason::TRUNCATED,
-                format!("偏移 0x{cursor:x} 的 PNG 块头被截断（文件长 {}）", data.len()),
+                format!(
+                    "偏移 0x{cursor:x} 的 PNG 块头被截断（文件长 {}）",
+                    data.len()
+                ),
             ));
         };
         let length = u32::from_be_bytes([head[0], head[1], head[2], head[3]]) as usize;
@@ -320,14 +324,12 @@ pub fn scan_png(data: &[u8]) -> Result<ParsedContainer, ContainerError> {
             b"eXIf" => {
                 out.exif_candidates.push(data_start as u32);
                 if out.exif.is_some() {
-                    out.exif_skipped.push(format!(
-                        "0x{data_start:x} 的 eXIf 未采用（已取首个有效段）"
-                    ));
+                    out.exif_skipped
+                        .push(format!("0x{data_start:x} 的 eXIf 未采用（已取首个有效段）"));
                 } else if payload.is_empty() {
                     let error = ContainerError::new(reason::EMPTY, "eXIf 块数据为空");
-                    out.exif_skipped.push(format!(
-                        "0x{data_start:x} 的 eXIf 块为空，拒绝"
-                    ));
+                    out.exif_skipped
+                        .push(format!("0x{data_start:x} 的 eXIf 块为空，拒绝"));
                     if first_failure.is_none() {
                         first_failure = Some(error);
                     }
@@ -347,10 +349,8 @@ pub fn scan_png(data: &[u8]) -> Result<ParsedContainer, ContainerError> {
                                 error.reason, error.message
                             ));
                             if first_failure.is_none() {
-                                first_failure = Some(ContainerError::new(
-                                    error.reason,
-                                    error.message,
-                                ));
+                                first_failure =
+                                    Some(ContainerError::new(error.reason, error.message));
                             }
                         }
                     }
@@ -365,7 +365,8 @@ pub fn scan_png(data: &[u8]) -> Result<ParsedContainer, ContainerError> {
                 if let Some(text) = parse_png_text(payload, chunk_name, data_start as u32) {
                     if text.key == XMP_PNG_KEY {
                         if out.xmp.is_none() {
-                            out.xmp = Some(parse_xmp(payload_after_key(payload).0, data_start as u32));
+                            out.xmp =
+                                Some(parse_xmp(payload_after_key(payload).0, data_start as u32));
                         }
                     } else {
                         out.png_texts.push(text);
@@ -452,7 +453,14 @@ pub fn parse_xmp(body: &[u8], offset: u32) -> XmpPacket {
     XmpPacket {
         offset,
         length: body.len(),
-        date_created: xmp_field(&text, &["xmp:CreateDate", "photoshop:DateCreated", "exif:DateTimeOriginal"]),
+        date_created: xmp_field(
+            &text,
+            &[
+                "xmp:CreateDate",
+                "photoshop:DateCreated",
+                "exif:DateTimeOriginal",
+            ],
+        ),
         creator_tool: xmp_field(&text, &["xmp:CreatorTool"]),
         packet_truncated: truncated,
     }

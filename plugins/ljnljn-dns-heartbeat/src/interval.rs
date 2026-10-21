@@ -28,6 +28,8 @@ pub struct QueryHit {
     pub slot: u64,
     /// 源记录在抓包文件中的字节偏移。
     pub offset: u64,
+    /// 该记录在抓包文件中的结束偏移（不含），用于记录级来源区间。
+    pub end: u64,
 }
 
 /// 预聚合结果：供输出层格式化。
@@ -73,6 +75,8 @@ pub struct GroupStats {
     pub first_offset: u64,
     /// 该分组最晚一帧的抓包文件字节偏移。
     pub last_offset: u64,
+    /// 该分组最晚一帧记录在抓包文件中的结束偏移（不含）。
+    pub last_end: u64,
 }
 
 /// 每个域名的聚合桶。
@@ -81,8 +85,8 @@ pub struct Bucket {
     count: u64,
     truncated: u64,
     out_of_order: u64,
-    /// (时间, 槽位, 偏移)，超限后不再保留。
-    epochs: Vec<(f64, u64, u64)>,
+    /// (时间, 槽位, 偏移, 结束偏移)，超限后不再保留。
+    epochs: Vec<(f64, u64, u64, u64)>,
 }
 
 /// (qname, qtype) → 聚合桶。
@@ -96,11 +100,13 @@ impl QueryHit {
     }
 
     fn at(epoch: f64, out_of_order: bool, slot: u64) -> Self {
+        let offset = 24 + slot * 64;
         Self {
             epoch,
             out_of_order,
             slot,
-            offset: 24 + slot * 64,
+            offset,
+            end: offset + 64,
         }
     }
 }
@@ -115,7 +121,9 @@ pub fn record(groups: &mut Groups, qname: &str, qtype: u16, hit: QueryHit) {
         bucket.out_of_order += 1;
     }
     if bucket.epochs.len() < MAX_QUERIES_PER_GROUP {
-        bucket.epochs.push((hit.epoch, hit.slot, hit.offset));
+        bucket
+            .epochs
+            .push((hit.epoch, hit.slot, hit.offset, hit.end));
     } else {
         bucket.truncated += 1;
     }
@@ -154,10 +162,12 @@ fn group_stats(qname: String, qtype: u16, bucket: Bucket, options: &AnalysisOpti
     let sampled = epochs.len();
     let first_epoch = epochs.first().copied().unwrap_or(0.0);
     let last_epoch = epochs.last().copied().unwrap_or(0.0);
-    let first_slot = samples.first().map(|sample| sample.1).unwrap_or(0);
-    let last_slot = samples.last().map(|sample| sample.1).unwrap_or(0);
-    let first_offset = samples.first().map(|sample| sample.2).unwrap_or(0);
-    let last_offset = samples.last().map(|sample| sample.2).unwrap_or(0);
+    // 来源区间按文件顺序取最小/最大槽位与偏移；时间排序只用于间隔统计。
+    let first_slot = samples.iter().map(|sample| sample.1).min().unwrap_or(0);
+    let last_slot = samples.iter().map(|sample| sample.1).max().unwrap_or(0);
+    let first_offset = samples.iter().map(|sample| sample.2).min().unwrap_or(0);
+    let last_offset = samples.iter().map(|sample| sample.2).max().unwrap_or(0);
+    let last_end = samples.iter().map(|sample| sample.3).max().unwrap_or(0);
     let zero_intervals = intervals.is_empty();
 
     let interval_count = intervals.len() as u64;
@@ -217,8 +227,16 @@ fn group_stats(qname: String, qtype: u16, bucket: Bucket, options: &AnalysisOpti
         interval_count,
         interval_mean,
         interval_stdev,
-        interval_min: if interval_min.is_finite() { interval_min } else { 0.0 },
-        interval_max: if interval_max.is_finite() { interval_max } else { 0.0 },
+        interval_min: if interval_min.is_finite() {
+            interval_min
+        } else {
+            0.0
+        },
+        interval_max: if interval_max.is_finite() {
+            interval_max
+        } else {
+            0.0
+        },
         interval_median,
         stability,
         periodic,
@@ -231,6 +249,7 @@ fn group_stats(qname: String, qtype: u16, bucket: Bucket, options: &AnalysisOpti
         last_slot,
         first_offset,
         last_offset,
+        last_end,
     }
 }
 
@@ -265,12 +284,7 @@ mod tests {
     fn hits(epochs: &[f64]) -> Groups {
         let mut groups = Groups::new();
         for epoch in epochs {
-            record(
-                &mut groups,
-                "a.example",
-                1,
-                QueryHit::test(*epoch),
-            );
+            record(&mut groups, "a.example", 1, QueryHit::test(*epoch));
         }
         groups
     }
@@ -321,8 +335,14 @@ mod tests {
         // 6/7 ≈ 0.857 仍 ≥ 0.8：本组仍被判周期性（这是"可容忍一次缺失"的边界），
         // 但稳定性相对规律心跳（1.0）明显下降。
         assert!(group.periodic);
-        assert!(group.stability < analyze(hits(&[0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 18.0, 21.0]), &AnalysisOptions::default())[0]
-            .stability);
+        assert!(
+            group.stability
+                < analyze(
+                    hits(&[0.0, 3.0, 6.0, 9.0, 12.0, 15.0, 18.0, 21.0]),
+                    &AnalysisOptions::default()
+                )[0]
+                .stability
+        );
         // 收紧 stability 阈值到 0.9 后即不再判周期。
         let strict = analyze(
             hits(&epochs),
@@ -410,12 +430,7 @@ mod tests {
     fn per_group_cap_is_enforced_and_counted() {
         let mut groups = Groups::new();
         for index in 0..(MAX_QUERIES_PER_GROUP + 10) {
-            record(
-                &mut groups,
-                "cap.example",
-                1,
-                QueryHit::test(index as f64),
-            );
+            record(&mut groups, "cap.example", 1, QueryHit::test(index as f64));
         }
         let stats = analyze(groups, &AnalysisOptions::default());
         assert_eq!(stats[0].query_count, (MAX_QUERIES_PER_GROUP + 10) as u64);

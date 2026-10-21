@@ -1,37 +1,18 @@
+# LPP v2 package manifest. Labels are the Chinese defaults; translations live
+# in locales/<locale>.toml under stable keys.
 id = "org.ljnljn.dns-heartbeat"
 name = "DNS 查询心跳周期分析"
 version = "0.1.0"
-protocol_min = 1
-protocol_max = 1
-permissions = ["emit_artifacts"]
+protocol = 2
+library = "ljnljn_dns_heartbeat"
+memory = "512MiB"
+permissions = []
 
-# ljnljn_kb_dns_heartbeat_periodicity_64075a55.dll，由本 crate 构建。
-# 解析不可信检材，保留 isolation = "process"（崩溃不带走主程序）。
-[library]
-path = "ljnljn_kb_dns_heartbeat_periodicity_64075a55"
-isolation = "process"
-
-# 单文件分析：手动触发；对抓包文件（pcap）在任意平台调用。
-# 首版只支持 classic pcap（.pcap），不声明 auto，避免在不相关文件上自动运行。
-[task]
-type = "fileanalyzer"
-platform = "all"
-trigger = "manually"
-support = [
-  "classic pcap 解析（pcapng 不支持）",
-  "Ethernet/VLAN → IPv4 → UDP → 端口 53 → DNS 查询提取",
-  "按域名与 qtype 分组（不区分发起客户端）",
-  "相邻查询间隔统计（中位数/均值/标准差/最小/最大，单位毫秒）",
-  "稳定性与周期心跳候选判定（比例输出为百分比）",
-  "源文件句柄/显示名/长度，以及源记录槽位与文件字节偏移区间",
-]
-
-# 说明：本插件不计算源文件哈希（解析器按需随机读取，读回调字节序不等于源文件
-# 字节序），因此这里不再声明 SHA-256；溯源只依赖 SDK 文件句柄与记录偏移。
-
-[[capabilities]]
-type = "file_analyzer"
-analyzer = "ljnljn.dns-heartbeat"
-# 首版仅 classic pcap；pcapng 会在运行时报 unsupported_capture_format。
+# 首版只支持 classic pcap（.pcap/.cap/.dmp）；pcapng 在运行时报告警而不是被误解析。
+[[analyzer]]
+id = "dns_heartbeat"
+name = "DNS 查询心跳周期分析"
+scope = "files"
 extensions = ["pcap", "cap", "dmp"]
-priority = 10
+trigger = "manual"
+category = "network"

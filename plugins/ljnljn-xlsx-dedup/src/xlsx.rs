@@ -43,7 +43,9 @@ pub struct Workbook {
 
 impl Workbook {
     pub fn has_sheet_part(&self) -> bool {
-        self.parts.iter().any(|part| part.starts_with("xl/worksheets/"))
+        self.parts
+            .iter()
+            .any(|part| part.starts_with("xl/worksheets/"))
     }
 }
 
@@ -114,8 +116,12 @@ pub fn read_workbook<B: Blob + ?Sized>(blob: &B) -> Result<Workbook, DedupError>
 
     // r:id → 关系目标
     let mut rel_targets: HashMap<String, String> = HashMap::new();
-    if let Some(rels) = read_part(blob, &entries, "xl/_rels/workbook.xml.rels", MAX_AUX_XML_BYTES)?
-    {
+    if let Some(rels) = read_part(
+        blob,
+        &entries,
+        "xl/_rels/workbook.xml.rels",
+        MAX_AUX_XML_BYTES,
+    )? {
         let mut reader = reader_for(&rels);
         let mut buffer = Vec::new();
         loop {
@@ -334,7 +340,9 @@ pub fn format_is_date_like(code: &str) -> bool {
             '"' => in_quote = !in_quote,
             '[' if !in_quote => in_bracket = true,
             ']' if !in_quote => in_bracket = false,
-            'y' | 'Y' | 'm' | 'M' | 'd' | 'D' | 'h' | 'H' | 's' | 'S' if !in_quote && !in_bracket => {
+            'y' | 'Y' | 'm' | 'M' | 'd' | 'D' | 'h' | 'H' | 's' | 'S'
+                if !in_quote && !in_bracket =>
+            {
                 return true
             }
             _ => {}
@@ -583,7 +591,11 @@ fn push_cell(row: &mut SheetRow, column: usize, value: String) {
     if value.is_empty() {
         return;
     }
-    match row.cells.iter_mut().find(|(existing, _)| *existing == column) {
+    match row
+        .cells
+        .iter_mut()
+        .find(|(existing, _)| *existing == column)
+    {
         Some(slot) => slot.1.push_str(&value),
         None => row.cells.push((column, value)),
     }
@@ -595,11 +607,7 @@ pub fn cell_text(raw: &str, data_type: &str, style: Option<usize>, workbook: &Wo
     match data_type {
         "s" => {
             let index: usize = text.trim().parse().unwrap_or(usize::MAX);
-            workbook
-                .shared_strings
-                .get(index)
-                .cloned()
-                .unwrap_or(text)
+            workbook.shared_strings.get(index).cloned().unwrap_or(text)
         }
         "b" => match text.trim() {
             "1" => "TRUE".to_owned(),
@@ -667,7 +675,10 @@ pub fn parse_range(reference: &str) -> Option<Merge> {
 /// `A1` → (行 1 基, 列 0 基)。
 pub fn parse_cell_address(address: &str) -> Option<(u32, usize)> {
     let column = column_index(address)?;
-    let digits: String = address.chars().skip_while(|ch| ch.is_ascii_alphabetic()).collect();
+    let digits: String = address
+        .chars()
+        .skip_while(|ch| ch.is_ascii_alphabetic())
+        .collect();
     let row: u32 = digits.trim().parse().ok()?;
     (row >= 1).then_some((row, column))
 }
@@ -690,8 +701,7 @@ fn apply_merges(row: &mut SheetRow, merges: &[Merge]) {
             continue;
         };
         for column in start_column..=end_column.min(start_column + 64) {
-            if column != start_column
-                && !row.cells.iter().any(|(existing, _)| *existing == column)
+            if column != start_column && !row.cells.iter().any(|(existing, _)| *existing == column)
             {
                 row.cells.push((column, source.clone()));
             }
@@ -746,7 +756,10 @@ mod tests {
     fn shared_strings_concatenate_rich_text_runs() {
         let xml = r#"<?xml version="1.0"?><sst><si><t>张</t></si><si><r><t>李</t></r><r><t>四</t></r></si><si/></sst>"#;
         let strings = parse_shared_strings(xml.as_bytes()).expect("shared strings");
-        assert_eq!(strings, vec!["张".to_string(), "李四".to_string(), String::new()]);
+        assert_eq!(
+            strings,
+            vec!["张".to_string(), "李四".to_string(), String::new()]
+        );
     }
 
     #[test]

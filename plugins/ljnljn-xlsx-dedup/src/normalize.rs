@@ -10,9 +10,7 @@ pub fn to_halfwidth(input: &str) -> String {
     for ch in input.chars() {
         let mapped = match ch {
             '\u{3000}' => ' ',
-            '\u{FF01}'..='\u{FF5E}' => {
-                char::from_u32(ch as u32 - 0xFEE0).unwrap_or(ch)
-            }
+            '\u{FF01}'..='\u{FF5E}' => char::from_u32(ch as u32 - 0xFEE0).unwrap_or(ch),
             // 中文输入法常见的“全角连字符/破折号/中点”，电话里一律视作分隔。
             '\u{2010}'..='\u{2015}' | '\u{2212}' | '\u{30FB}' | '\u{FF65}' => '-',
             '\u{FFE5}' => '¥',
@@ -232,7 +230,10 @@ mod tests {
         assert_eq!(normalize_phone(" 138-0013-8000 "), "13800138000");
         assert_eq!(normalize_phone("+86 138 0013 8000"), "+8613800138000");
         assert_eq!(normalize_phone("+86-138-0013-8000"), "+8613800138000");
-        assert_eq!(normalize_phone("＋８６　１３８－００１３－８０００"), "+8613800138000");
+        assert_eq!(
+            normalize_phone("＋８６　１３８－００１３－８０００"),
+            "+8613800138000"
+        );
         assert_eq!(normalize_phone("138+0013"), "1380013");
         assert_eq!(normalize_phone(""), "");
         assert_eq!(normalize_phone("13800138000转800"), "13800138000800");
@@ -245,7 +246,7 @@ mod tests {
             "广东省 深圳市 南山区 科技园 南区 1栋 2单元"
         );
         assert_eq!(
-            normalize_address("北京市海淀区中关村大街１号；"), 
+            normalize_address("北京市海淀区中关村大街１号；"),
             "北京市海淀区中关村大街1号"
         );
         assert_eq!(normalize_address("  "), "");
@@ -269,6 +270,9 @@ mod tests {
         assert_eq!(mask_phone(""), "");
         assert_eq!(mask_name("张三丰"), "张**");
         // 13 个字符：保留前 6（北京市海淀区）与末 4（大街1号），中间 3 个打码。
-        assert_eq!(mask_address("北京市海淀区中关村大街1号"), "北京市海淀区***大街1号");
+        assert_eq!(
+            mask_address("北京市海淀区中关村大街1号"),
+            "北京市海淀区***大街1号"
+        );
     }
 }

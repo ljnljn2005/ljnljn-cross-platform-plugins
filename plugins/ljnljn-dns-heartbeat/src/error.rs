@@ -71,7 +71,10 @@ impl From<PluginError> for AnalyzeError {
             "CANCELLED" => E_CANCELLED,
             _ => E_IO,
         };
-        Self::new(code, format!("宿主读取失败 {}: {}", error.code, error.message))
+        Self::new(
+            code,
+            format!("宿主读取失败 {}: {}", error.code, error.message),
+        )
     }
 }
 
@@ -99,7 +102,11 @@ mod tests {
         let plugin = error.into_plugin();
         assert_eq!(plugin.code, "corrupt_pcapng_block");
         assert!(plugin.message.contains("记录槽位 #7"), "{}", plugin.message);
-        assert!(plugin.message.contains("文件偏移 4096"), "{}", plugin.message);
+        assert!(
+            plugin.message.contains("文件偏移 4096"),
+            "{}",
+            plugin.message
+        );
     }
 
     #[test]

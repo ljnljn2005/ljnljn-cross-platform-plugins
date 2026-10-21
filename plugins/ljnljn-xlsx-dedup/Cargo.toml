@@ -1,30 +1,28 @@
 [package]
-name = "ljnljn-sf-xlsx-dedup-count-9756f644"
+name = "ljnljn-xlsx-dedup"
 version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-only"
-description = "LovelyCarve 收件人表格（xlsx / zip 内 xlsx）姓名+电话+地址三元组去重统计分析器"
+description = "LovelyCarve LPP v2 analyzer: recipient table (name+phone+address) de-duplication counts"
 publish = false
 
 [lib]
-# plugin.toml 的 [library].path 与 Windows 产物 ljnljn_kb_sf_xlsx_dedup_count_9756f644.dll 一致。
-name = "ljnljn_kb_sf_xlsx_dedup_count_9756f644"
+name = "ljnljn_xlsx_dedup"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# 真实 SDK crate，来自官方插件工作区 sdk/（Cargo.toml 内 name = "lovelycarve-plugin"，
-# license.workspace = true 由父工作区 _plugin-gen/_sdk/Cargo.toml 提供）。
-# 工程位于 _plugin-gen/<dir>，相对路径解析会落到 workspaces/_sdk/sdk（不存在），
-# 因此使用已核实的绝对路径（Windows 反斜杠在 TOML 中会被转义，故用正斜杠）。
-lovelycarve-plugin = { path = "../../sdk-v1/sdk" }
-# zip 自身不在 SDK 工作区的锁文件里，因此本 crate 直接使用底层解码 crate。
+lovelycarve-plugin = { path = "../../sdk-v2/sdk" }
+# xlsx files are ZIP containers; the v1 layer decodes STORED/DEFLATE members
+# itself instead of pulling a full zip crate.
 flate2 = "1"
 crc32fast = "1"
-# 流式 XML 读取（工作簿/共享字符串/样式/工作表）：只读事件解析，不联网、不执行实体。
+# Streaming XML reads (workbook/shared strings/styles/worksheets).
 quick-xml = "0.41"
 
+[dev-dependencies]
+lovelycarve-plugin = { path = "../../sdk-v2/sdk", features = ["testing"] }
+
 [lints.rust]
-# MSVC link.exe 会为每个 DLL 输出导入库提示。
 linker_messages = "allow"
 
 [lints.clippy]

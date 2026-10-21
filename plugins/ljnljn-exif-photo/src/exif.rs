@@ -106,7 +106,10 @@ pub enum ValueKind {
     Rational(Vec<(u32, u32)>),
     SRational(Vec<(i32, i32)>),
     /// Undefined (type 7) and exotic types: raw bytes in hex form.
-    Bytes { kind: u16, bytes: Vec<u8> },
+    Bytes {
+        kind: u16,
+        bytes: Vec<u8>,
+    },
 }
 
 impl ValueKind {
@@ -497,9 +500,10 @@ fn decode_value(
     slot: usize,
     little: bool,
 ) -> Result<Decoded, DecodeError> {
-    let size = type_size(type_id)
-        .ok_or_else(|| DecodeError::Tag(format!("未知值类型 {type_id}")))?;
-    let count = usize::try_from(count).map_err(|_| DecodeError::Tag("数量超出平台范围".to_owned()))?;
+    let size =
+        type_size(type_id).ok_or_else(|| DecodeError::Tag(format!("未知值类型 {type_id}")))?;
+    let count =
+        usize::try_from(count).map_err(|_| DecodeError::Tag("数量超出平台范围".to_owned()))?;
     let length = count
         .checked_mul(size)
         .ok_or_else(|| DecodeError::Tag("数量×类型长度溢出".to_owned()))?;
@@ -552,7 +556,9 @@ fn decode_value(
         4 | 13 => ValueKind::Long(
             bytes
                 .chunks_exact(4)
-                .map(|chunk| u32::from_be_bytes_or_le([chunk[0], chunk[1], chunk[2], chunk[3]], little))
+                .map(|chunk| {
+                    u32::from_be_bytes_or_le([chunk[0], chunk[1], chunk[2], chunk[3]], little)
+                })
                 .collect(),
         ),
         5 => ValueKind::Rational(

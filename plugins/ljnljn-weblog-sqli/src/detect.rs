@@ -105,8 +105,14 @@ impl TimeStats {
     fn add(&mut self, record: &RequestRecord) {
         let time = record.time.linear_nanos();
         let seconds = record.time.linear_seconds();
-        self.min = Some(self.min.map_or((time, time), |(low, high)| (low.min(time), high)));
-        self.max = Some(self.max.map_or((time, time), |(low, high)| (low, high.max(time))));
+        self.min = Some(
+            self.min
+                .map_or((time, time), |(low, high)| (low.min(time), high)),
+        );
+        self.max = Some(
+            self.max
+                .map_or((time, time), |(low, high)| (low, high.max(time))),
+        );
         let repeated = self
             .ips
             .iter()
@@ -172,7 +178,10 @@ pub struct WindowScan {
 
 impl WindowScan {
     pub fn family_count(&self) -> usize {
-        self.window_families.iter().filter(|count| **count > 0).count()
+        self.window_families
+            .iter()
+            .filter(|count| **count > 0)
+            .count()
     }
 
     /// The best window meets the configured thresholds.
@@ -228,7 +237,11 @@ pub fn scan_windows(records: &mut [RequestRecord], config: &Config) -> ScanResul
         for record in &records[start..=end] {
             stats.add(record);
         }
-        let keys = (stats.family_count(), stats.ips.len(), usize::MAX - stats.distinct_ips() as usize);
+        let keys = (
+            stats.family_count(),
+            stats.ips.len(),
+            usize::MAX - stats.distinct_ips() as usize,
+        );
         let better = match &best {
             None => true,
             Some((best_families, best_stats)) => {

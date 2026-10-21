@@ -367,9 +367,10 @@ impl<B: Blob + ?Sized> Read for RangeReader<'_, B> {
         let want = (self.end - self.position)
             .min(buffer.len() as u64)
             .min(STREAM_CHUNK as u64) as usize;
-        let chunk = self.blob.read_at(self.position, want).map_err(|error| {
-            std::io::Error::other(format!("读取压缩数据失败：{error}"))
-        })?;
+        let chunk = self
+            .blob
+            .read_at(self.position, want)
+            .map_err(|error| std::io::Error::other(format!("读取压缩数据失败：{error}")))?;
         let copied = chunk.len().min(buffer.len());
         buffer[..copied].copy_from_slice(&chunk[..copied]);
         self.position += copied as u64;

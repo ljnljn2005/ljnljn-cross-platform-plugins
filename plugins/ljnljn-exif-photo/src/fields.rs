@@ -235,9 +235,12 @@ pub fn interpret(block: &TiffBlock, carrier: &'static str, block_base: u64) -> M
     fields.software = text(IFD0, tag::SOFTWARE);
     fields.lens_model = text(EXIF_IFD, tag::LENS_MODEL).or_else(|| text(EXIF_IFD, tag::LENS_MAKE));
 
-    fields.datetime_original = time_field(find(EXIF_IFD, tag::DATETIME_ORIGINAL), |tag_value| origin_of(tag_value));
-    fields.datetime_digitized =
-        time_field(find(EXIF_IFD, tag::DATETIME_DIGITIZED), |tag_value| origin_of(tag_value));
+    fields.datetime_original = time_field(find(EXIF_IFD, tag::DATETIME_ORIGINAL), |tag_value| {
+        origin_of(tag_value)
+    });
+    fields.datetime_digitized = time_field(find(EXIF_IFD, tag::DATETIME_DIGITIZED), |tag_value| {
+        origin_of(tag_value)
+    });
     fields.datetime = time_field(find(IFD0, tag::DATETIME), |tag_value| origin_of(tag_value));
 
     // OffsetTimeOriginal is only reported when it is itself well formed.
@@ -374,9 +377,8 @@ pub fn timestamp_shape(text: &str) -> TimestampShape {
     }
     let bytes = text.as_bytes();
     let digit = |index: usize| bytes.get(index).is_some_and(u8::is_ascii_digit);
-    let separator = |index: usize, allowed: &[u8]| {
-        bytes.get(index).is_some_and(|byte| allowed.contains(byte))
-    };
+    let separator =
+        |index: usize, allowed: &[u8]| bytes.get(index).is_some_and(|byte| allowed.contains(byte));
     if text.len() >= 10
         && digit(0)
         && digit(1)
@@ -475,12 +477,7 @@ fn coordinate(
 }
 
 /// Degrees + minutes/60 + seconds/3600, sign taken only from the reference.
-pub fn signed_decimal(
-    degrees: f64,
-    minutes: f64,
-    seconds: f64,
-    reference: Option<&str>,
-) -> f64 {
+pub fn signed_decimal(degrees: f64, minutes: f64, seconds: f64, reference: Option<&str>) -> f64 {
     // Absolute magnitudes: a sender may store "-0/1 -15/1" style values, and
     // the direction must still come from the Ref character only.
     let magnitude = degrees.abs() + minutes.abs() / 60.0 + seconds.abs() / 3600.0;

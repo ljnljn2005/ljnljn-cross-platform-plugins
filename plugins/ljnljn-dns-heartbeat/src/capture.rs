@@ -198,7 +198,11 @@ impl TsResolution {
     /// 由文件头精度（微秒或纳秒魔数）计算。
     pub fn from_header(nanoseconds: bool) -> Self {
         Self {
-            den: if nanoseconds { 1_000_000_000 } else { 1_000_000 },
+            den: if nanoseconds {
+                1_000_000_000
+            } else {
+                1_000_000
+            },
             source: TimeSource::PcapHeader,
         }
     }
@@ -239,7 +243,10 @@ pub fn scan(
             }
             return Err(AnalyzeError::new(
                 E_UNSUPPORTED_FORMAT,
-                format!("文件不足 24 字节的 pcap 文件头（实际 {} 字节）", bytes.len()),
+                format!(
+                    "文件不足 24 字节的 pcap 文件头（实际 {} 字节）",
+                    bytes.len()
+                ),
             ));
         }
         Chunk::Eof => {
@@ -400,11 +407,7 @@ fn pcapng_unsupported() -> AnalyzeError {
 }
 
 /// 分块读取包载荷，避免一次性大块读入。
-fn read_packet_body(
-    source: &dyn ByteSource,
-    offset: u64,
-    len: usize,
-) -> AnalyzeResult<Vec<u8>> {
+fn read_packet_body(source: &dyn ByteSource, offset: u64, len: usize) -> AnalyzeResult<Vec<u8>> {
     let mut buffer = Vec::with_capacity(len);
     while buffer.len() < len {
         let want = (len - buffer.len()).min(SCAN_CHUNK);
@@ -475,7 +478,11 @@ mod tests {
         assert_eq!(collect.frames.len(), 1);
         let frame = &collect.frames[0];
         // 只按 ts_sec + ts_frac/1e6 换算，不加 28800 秒。
-        assert!((frame.epoch - 1_700_000_000.25).abs() < 1e-9, "epoch={}", frame.epoch);
+        assert!(
+            (frame.epoch - 1_700_000_000.25).abs() < 1e-9,
+            "epoch={}",
+            frame.epoch
+        );
         assert_eq!(frame.raw_ts, (1_700_000_000, 250_000));
         assert_eq!(frame.payload, vec![1, 2, 3]);
         assert!(!frame.out_of_order);
@@ -524,7 +531,11 @@ mod tests {
 
     #[test]
     fn pcap_out_of_order_records_are_flagged_but_keep_raw_values() {
-        let bytes = build_pcap(&[(100, 0, vec![1]), (90, 0, vec![2]), (95, 0, vec![3])], 0, false);
+        let bytes = build_pcap(
+            &[(100, 0, vec![1]), (90, 0, vec![2]), (95, 0, vec![3])],
+            0,
+            false,
+        );
         let mut collect = Collect { frames: Vec::new() };
         let (_, stats) = scan(&MemorySource::new(&bytes), &mut collect).expect("乱序 pcap 解析");
         assert_eq!(stats.out_of_order, 2);
@@ -556,8 +567,11 @@ mod tests {
     #[test]
     fn unknown_magic_and_pcapng_are_rejected_explicitly() {
         let mut collect = Collect { frames: Vec::new() };
-        let error =
-            scan(&MemorySource::new(b"GET / HTTP/1.1\r\n\r\n++++++++"), &mut collect).expect_err("应报错");
+        let error = scan(
+            &MemorySource::new(b"GET / HTTP/1.1\r\n\r\n++++++++"),
+            &mut collect,
+        )
+        .expect_err("应报错");
         assert_eq!(error.code, E_UNSUPPORTED_FORMAT);
 
         // pcapng 的 Section Header Block 魔数。

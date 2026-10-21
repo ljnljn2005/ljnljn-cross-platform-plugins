@@ -1,0 +1,343 @@
+{
+  "protocol": 2,
+  "plugin": "org.ljnljn.dns-heartbeat",
+  "sdk": "0.2.0",
+  "analyzers": [
+    "dns_heartbeat"
+  ],
+  "filesystems": [],
+  "records": [
+    {
+      "type": "profile.fact",
+      "label": "检材画像",
+      "title": "{key}",
+      "fields": [
+        {
+          "id": "key",
+          "label": "键",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "value",
+          "label": "值",
+          "kind": "json"
+        },
+        {
+          "id": "system",
+          "label": "系统",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "dns.heartbeat.domain",
+      "label": "DNS 查询心跳域名",
+      "title": "{qname} ({qtype_name})",
+      "fields": [
+        {
+          "id": "rank",
+          "label": "位次",
+          "kind": "int"
+        },
+        {
+          "id": "qname",
+          "label": "域名",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "qtype",
+          "label": "问题类型",
+          "kind": "int",
+          "key": true
+        },
+        {
+          "id": "qtype_name",
+          "label": "类型名",
+          "kind": "text"
+        },
+        {
+          "id": "query_count",
+          "label": "查询数",
+          "kind": "int"
+        },
+        {
+          "id": "first_seen",
+          "label": "首次查询",
+          "kind": "timestamp",
+          "timeline": "dns"
+        },
+        {
+          "id": "last_seen",
+          "label": "末次查询",
+          "kind": "timestamp",
+          "timeline": "dns"
+        },
+        {
+          "id": "interval_count",
+          "label": "间隔样本数",
+          "kind": "int"
+        },
+        {
+          "id": "interval_median",
+          "label": "间隔中位数（秒）",
+          "kind": "duration"
+        },
+        {
+          "id": "interval_mean",
+          "label": "间隔均值（秒）",
+          "kind": "duration"
+        },
+        {
+          "id": "interval_stdev",
+          "label": "间隔标准差（秒）",
+          "kind": "duration"
+        },
+        {
+          "id": "interval_min",
+          "label": "最小间隔（秒）",
+          "kind": "duration"
+        },
+        {
+          "id": "interval_max",
+          "label": "最大间隔（秒）",
+          "kind": "duration"
+        },
+        {
+          "id": "stability_pct",
+          "label": "稳定性（%）",
+          "kind": "float"
+        },
+        {
+          "id": "candidate_score",
+          "label": "候选分（0-1）",
+          "kind": "float"
+        },
+        {
+          "id": "verdict",
+          "label": "判定",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "periodic",
+              "label": "疑似周期心跳"
+            },
+            {
+              "id": "irregular",
+              "label": "间隔不规则"
+            },
+            {
+              "id": "insufficient",
+              "label": "样本不足"
+            },
+            {
+              "id": "no_intervals",
+              "label": "无相邻间隔"
+            }
+          ]
+        },
+        {
+          "id": "periodic",
+          "label": "疑似周期心跳",
+          "kind": "bool"
+        },
+        {
+          "id": "insufficient_samples",
+          "label": "样本不足",
+          "kind": "bool"
+        },
+        {
+          "id": "out_of_order",
+          "label": "乱序条数",
+          "kind": "int"
+        },
+        {
+          "id": "truncated_samples",
+          "label": "超限未采样条数",
+          "kind": "int"
+        },
+        {
+          "id": "first_slot",
+          "label": "首条包记录槽位",
+          "kind": "int"
+        },
+        {
+          "id": "last_slot",
+          "label": "末条包记录槽位",
+          "kind": "int"
+        },
+        {
+          "id": "interval_samples",
+          "label": "间隔样本（秒）",
+          "kind": "json"
+        }
+      ]
+    },
+    {
+      "type": "dns.capture.summary",
+      "label": "DNS 抓包摘要",
+      "title": "{file}",
+      "fields": [
+        {
+          "id": "file",
+          "label": "文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "file_size",
+          "label": "文件大小",
+          "kind": "size"
+        },
+        {
+          "id": "format",
+          "label": "抓包格式",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "pcap",
+              "label": "classic pcap"
+            }
+          ]
+        },
+        {
+          "id": "linktype",
+          "label": "链路类型",
+          "kind": "int"
+        },
+        {
+          "id": "snaplen",
+          "label": "snaplen",
+          "kind": "size"
+        },
+        {
+          "id": "reserved_field",
+          "label": "保留字段（原值，不参与换算）",
+          "kind": "int"
+        },
+        {
+          "id": "nanoseconds",
+          "label": "纳秒时间戳",
+          "kind": "bool"
+        },
+        {
+          "id": "time_basis",
+          "label": "时间基准",
+          "kind": "text"
+        },
+        {
+          "id": "record_count",
+          "label": "包记录数",
+          "kind": "int"
+        },
+        {
+          "id": "frame_count",
+          "label": "帧数",
+          "kind": "int"
+        },
+        {
+          "id": "dns_query_messages",
+          "label": "DNS 查询报文数",
+          "kind": "int"
+        },
+        {
+          "id": "queries_counted",
+          "label": "计入统计的查询数",
+          "kind": "int"
+        },
+        {
+          "id": "group_count",
+          "label": "域名·类型分组数",
+          "kind": "int"
+        },
+        {
+          "id": "periodic_groups",
+          "label": "疑似周期分组数",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_not_udp",
+          "label": "跳过：非 UDP",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_not_dns_port",
+          "label": "跳过：非 53 端口 UDP",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_ipv6",
+          "label": "跳过：IPv6",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_fragmented",
+          "label": "跳过：IP 分片",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_tcp",
+          "label": "跳过：TCP-DNS",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_linktype",
+          "label": "跳过：链路类型",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_truncated",
+          "label": "跳过：截断",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_malformed",
+          "label": "跳过：头部畸形",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_not_dns",
+          "label": "跳过：非 DNS",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_dns_response",
+          "label": "跳过：DNS 响应",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_dns_malformed",
+          "label": "跳过：畸形 DNS",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_suffix_filtered",
+          "label": "跳过：后缀过滤",
+          "kind": "int"
+        },
+        {
+          "id": "min_samples",
+          "label": "判定：最小样本数 N",
+          "kind": "int"
+        },
+        {
+          "id": "tolerance",
+          "label": "判定：抖动容差",
+          "kind": "float"
+        },
+        {
+          "id": "stability_threshold",
+          "label": "判定：稳定性阈值",
+          "kind": "float"
+        },
+        {
+          "id": "detail_limit",
+          "label": "判定：间隔明细上限",
+          "kind": "int"
+        }
+      ]
+    }
+  ],
+  "schema_hash": "fnv1a64:493f57b14211782a"
+}

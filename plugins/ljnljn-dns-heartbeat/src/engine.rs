@@ -107,7 +107,14 @@ struct Collector {
 
 impl FrameVisitor for Collector {
     fn on_frame(&mut self, frame: &Frame) -> AnalyzeResult<()> {
-        collect_frame(frame, &self.options, &mut self.groups, &mut self.skipped, &mut self.dns_query_messages, &mut self.queries_counted);
+        collect_frame(
+            frame,
+            &self.options,
+            &mut self.groups,
+            &mut self.skipped,
+            &mut self.dns_query_messages,
+            &mut self.queries_counted,
+        );
         Ok(())
     }
 }
@@ -158,6 +165,7 @@ fn collect_frame(
                         out_of_order: frame.out_of_order,
                         slot: frame.slot,
                         offset: frame.offset,
+                        end: frame.offset + 16 + frame.payload.len() as u64,
                     },
                 );
                 *queries_counted += 1;
@@ -183,10 +191,7 @@ fn record_skip(skipped: &mut SkipCounters, reason: &'static str) {
 }
 
 /// 对任意字节来源执行完整分析。
-pub fn analyze_source(
-    source: &dyn ByteSource,
-    options: AnalysisOptions,
-) -> AnalyzeResult<Report> {
+pub fn analyze_source(source: &dyn ByteSource, options: AnalysisOptions) -> AnalyzeResult<Report> {
     let mut collector = Collector {
         groups: Groups::new(),
         skipped: SkipCounters::default(),

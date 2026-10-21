@@ -1,33 +1,26 @@
+# LPP v2 package manifest. Labels are the Chinese defaults; translations live
+# in locales/<locale>.toml under stable keys.
 id = "org.ljnljn.weblog-sqli"
-name = "Web访问日志注入参数检测"
+name = "Web 访问日志注入参数检测"
 version = "0.1.0"
-protocol_min = 1
-protocol_max = 1
-permissions = ["emit_artifacts"]
+protocol = 2
+library = "ljnljn_weblog_sqli"
+memory = "1GiB"
+permissions = []
 
-[library]
-path = "ljnljn_kb_weblog_sqli_param_detect_30a22be5"
-isolation = "process"
-
-[task]
-type = "baseinfo"
-platform = "all"
-trigger = "manually"
-support = [
-  "Apache/Nginx common/combined 访问日志解析",
-  "query 参数提取与 SQL 注入特征族检测",
-  "按请求窗口聚合可疑参数",
-  "保留来源行号、原始行和原始编码值",
-]
-
-[[capabilities]]
-type = "file_analyzer"
-analyzer = "ljnljn.weblog-sqli.file"
-display = "Web 访问日志注入参数（单文件）"
+# 单文件：用户在文件列表选中的访问日志。
+[[analyzer]]
+id = "weblog_files"
+name = "Web 访问日志注入参数（单文件）"
+scope = "files"
 extensions = ["log", "txt"]
-priority = 10
+trigger = "manual"
+category = "web"
 
-[[capabilities]]
-type = "evidence_analyzer"
-analyzer = "ljnljn.weblog-sqli.evidence"
-display = "Web 访问日志注入参数（检材级）"
+# 检材级：遍历每个卷的固定 Web 日志目录。
+[[analyzer]]
+id = "weblog_evidence"
+name = "Web 访问日志注入参数（检材级）"
+scope = "evidence"
+trigger = "manual"
+category = "web"

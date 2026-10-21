@@ -1,28 +1,55 @@
+# LPP v2 package manifest. Labels are the Chinese defaults; translations live
+# in locales/<locale>.toml under stable keys.
 id = "org.ljnljn.sqlcipher-profile"
 name = "SQLCipher 文件头画像"
 version = "0.1.0"
-protocol_min = 1
-protocol_max = 1
-permissions = ["emit_artifacts"]
+protocol = 2
+library = "ljnljn_sqlcipher_profile"
+memory = "512MiB"
+permissions = []
 
-# 单文件分析器：ljnljn_kb_sqlcipher_header_profile_1cb485b2.dll / .so。
-# 解析的是不可信检材字节，必须保持默认 isolation = "process"。
-[library]
-path = "ljnljn_kb_sqlcipher_header_profile_1cb485b2"
-isolation = "process"
+[[analyzer]]
+id = "sqlcipher_header"
+name = "SQLCipher 文件头画像（加密参数与 HMAC 试校验）"
+scope = "files"
+extensions = ["db", "sqlite", "db3", "sqlcipher"]
+mime_types = ["application/vnd.sqlite3", "application/x-sqlite3", "application/octet-stream"]
+trigger = "manual"
+category = "sqlcipher"
 
-[task]
-type = "fileanalyzer"
-platform = "all"
-trigger = "manually"
-support = [
-  "明文 SQLite 头识别",
-  "SQLCipher 4 头结构解析",
-  "加密参数画像",
-  "首库页 HMAC 试校验",
+# All key material is optional. With no passphrase and no key, the analyzer
+# only reports the structural profile and explicitly records
+# key_check = not-attempted (no HMAC check is performed).
+[[analyzer.option]]
+id = "passphrase"
+type = "text"
+label = "候选口令（留空不试校验）"
+default = ""
+
+[[analyzer.option]]
+id = "key_hex"
+type = "text"
+label = "64 位 hex 主密钥（32 字节，留空不试校验）"
+default = ""
+
+[[analyzer.option]]
+id = "kdf_iter"
+type = "text"
+label = "KDF 迭代次数"
+default = "256000"
+
+[[analyzer.option]]
+id = "hmac"
+type = "choice"
+label = "HMAC 摘要"
+default = "sha512"
+choices = [
+  { id = "sha512", label = "SHA-512（SQLCipher 4 默认）" },
+  { id = "sha256", label = "SHA-256" },
 ]
 
-[[capabilities]]
-type = "file_analyzer"
-analyzer = "ljnljn.sqlcipher-profile"
-display = "SQLCipher 文件头画像（加密参数与 HMAC 试校验）"
+[[analyzer.option]]
+id = "page_offset"
+type = "text"
+label = "第一页偏移（字节，默认 0）"
+default = "0"

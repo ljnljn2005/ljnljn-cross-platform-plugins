@@ -1,0 +1,442 @@
+{
+  "protocol": 2,
+  "plugin": "org.ljnljn.exif-photo",
+  "sdk": "0.2.0",
+  "analyzers": [
+    "exif_files",
+    "exif_evidence"
+  ],
+  "filesystems": [],
+  "records": [
+    {
+      "type": "profile.fact",
+      "label": "检材画像",
+      "title": "{key}",
+      "fields": [
+        {
+          "id": "key",
+          "label": "键",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "value",
+          "label": "值",
+          "kind": "json"
+        },
+        {
+          "id": "system",
+          "label": "系统",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "photo.exif",
+      "label": "照片元数据",
+      "title": "{path} ({format})",
+      "fields": [
+        {
+          "id": "path",
+          "label": "源文件路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "name",
+          "label": "文件名",
+          "kind": "text"
+        },
+        {
+          "id": "format",
+          "label": "真实格式",
+          "kind": "enum",
+          "choices": [
+            {
+              "id": "jpeg",
+              "label": "JPEG"
+            },
+            {
+              "id": "png",
+              "label": "PNG"
+            },
+            {
+              "id": "heic",
+              "label": "HEIC"
+            },
+            {
+              "id": "heif",
+              "label": "HEIF"
+            },
+            {
+              "id": "unknown",
+              "label": "Unknown"
+            }
+          ]
+        },
+        {
+          "id": "container",
+          "label": "容器",
+          "kind": "text"
+        },
+        {
+          "id": "declared_extension",
+          "label": "声明扩展名",
+          "kind": "text"
+        },
+        {
+          "id": "extension_mismatch",
+          "label": "扩展名与格式不符",
+          "kind": "bool"
+        },
+        {
+          "id": "size",
+          "label": "字节长度",
+          "kind": "size"
+        },
+        {
+          "id": "sha256",
+          "label": "SHA-256",
+          "kind": "hash"
+        },
+        {
+          "id": "exif_present",
+          "label": "含 EXIF",
+          "kind": "bool"
+        },
+        {
+          "id": "gps_present",
+          "label": "含 GPS",
+          "kind": "bool"
+        },
+        {
+          "id": "gps_ref_defaulted",
+          "label": "GPS 参考缺失（按正值输出）",
+          "kind": "bool"
+        },
+        {
+          "id": "datetime_original_raw",
+          "label": "拍摄时间（原值）",
+          "kind": "text"
+        },
+        {
+          "id": "datetime_original_offset",
+          "label": "拍摄时间偏移（原值，未应用）",
+          "kind": "text"
+        },
+        {
+          "id": "datetime_original_precision",
+          "label": "拍摄时间精度",
+          "kind": "text"
+        },
+        {
+          "id": "capture_time",
+          "label": "拍摄时间（本地墙钟）",
+          "kind": "timestamp"
+        },
+        {
+          "id": "datetime_raw",
+          "label": "修改时间（原值）",
+          "kind": "text"
+        },
+        {
+          "id": "datetime_digitized_raw",
+          "label": "数字化时间（原值）",
+          "kind": "text"
+        },
+        {
+          "id": "make",
+          "label": "厂商",
+          "kind": "text"
+        },
+        {
+          "id": "model",
+          "label": "机型",
+          "kind": "text"
+        },
+        {
+          "id": "lens_model",
+          "label": "镜头",
+          "kind": "text"
+        },
+        {
+          "id": "software",
+          "label": "软件",
+          "kind": "text"
+        },
+        {
+          "id": "image_width",
+          "label": "宽",
+          "kind": "int"
+        },
+        {
+          "id": "image_height",
+          "label": "高",
+          "kind": "int"
+        },
+        {
+          "id": "png_width",
+          "label": "PNG 宽",
+          "kind": "int"
+        },
+        {
+          "id": "png_height",
+          "label": "PNG 高",
+          "kind": "int"
+        },
+        {
+          "id": "orientation",
+          "label": "方向",
+          "kind": "int"
+        },
+        {
+          "id": "orientation_label",
+          "label": "方向说明",
+          "kind": "text"
+        },
+        {
+          "id": "latitude_ref",
+          "label": "纬度参考",
+          "kind": "text"
+        },
+        {
+          "id": "latitude_dms",
+          "label": "纬度（度分秒）",
+          "kind": "text"
+        },
+        {
+          "id": "latitude_decimal",
+          "label": "纬度（十进制度）",
+          "kind": "float"
+        },
+        {
+          "id": "longitude_ref",
+          "label": "经度参考",
+          "kind": "text"
+        },
+        {
+          "id": "longitude_dms",
+          "label": "经度（度分秒）",
+          "kind": "text"
+        },
+        {
+          "id": "longitude_decimal",
+          "label": "经度（十进制度）",
+          "kind": "float"
+        },
+        {
+          "id": "altitude",
+          "label": "海拔（米，按参考修正）",
+          "kind": "float"
+        },
+        {
+          "id": "altitude_raw",
+          "label": "海拔原值（米）",
+          "kind": "float"
+        },
+        {
+          "id": "altitude_ref",
+          "label": "海拔参考",
+          "kind": "text"
+        },
+        {
+          "id": "gps_timestamp",
+          "label": "GPS 时间",
+          "kind": "text"
+        },
+        {
+          "id": "gps_datestamp",
+          "label": "GPS 日期",
+          "kind": "text"
+        },
+        {
+          "id": "gps_satellites",
+          "label": "GPS 卫星",
+          "kind": "text"
+        },
+        {
+          "id": "missing",
+          "label": "缺失字段",
+          "kind": "list"
+        },
+        {
+          "id": "origin",
+          "label": "字段来源偏移",
+          "kind": "text"
+        },
+        {
+          "id": "exif_carrier",
+          "label": "EXIF 载体",
+          "kind": "text"
+        },
+        {
+          "id": "container_offset",
+          "label": "容器偏移",
+          "kind": "size"
+        },
+        {
+          "id": "tiff_offset",
+          "label": "TIFF 偏移",
+          "kind": "size"
+        },
+        {
+          "id": "byte_order",
+          "label": "字节序",
+          "kind": "text"
+        },
+        {
+          "id": "ifd_offsets",
+          "label": "IFD 偏移",
+          "kind": "text"
+        },
+        {
+          "id": "tag_count",
+          "label": "EXIF 标签数",
+          "kind": "int"
+        },
+        {
+          "id": "exif_candidates",
+          "label": "EXIF 候选段数",
+          "kind": "int"
+        },
+        {
+          "id": "exif_skipped",
+          "label": "跳过的 EXIF 项",
+          "kind": "list"
+        },
+        {
+          "id": "xmp_offset",
+          "label": "XMP 偏移",
+          "kind": "size"
+        },
+        {
+          "id": "xmp_date",
+          "label": "XMP 创建时间",
+          "kind": "text"
+        },
+        {
+          "id": "xmp_tool",
+          "label": "XMP 工具",
+          "kind": "text"
+        },
+        {
+          "id": "xmp_truncated",
+          "label": "XMP 被截断",
+          "kind": "bool"
+        },
+        {
+          "id": "png_texts",
+          "label": "PNG 文本块",
+          "kind": "list"
+        },
+        {
+          "id": "complete",
+          "label": "记录完整",
+          "kind": "bool"
+        },
+        {
+          "id": "warnings",
+          "label": "警告",
+          "kind": "list"
+        }
+      ]
+    },
+    {
+      "type": "photo.issue",
+      "label": "照片解析失败/跳过",
+      "title": "{path} [{code}]",
+      "fields": [
+        {
+          "id": "path",
+          "label": "源文件路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "code",
+          "label": "原因代码",
+          "kind": "text"
+        },
+        {
+          "id": "reason_text",
+          "label": "原因说明",
+          "kind": "text"
+        },
+        {
+          "id": "size",
+          "label": "字节长度",
+          "kind": "size"
+        }
+      ]
+    },
+    {
+      "type": "photo.summary",
+      "label": "照片元数据汇总",
+      "title": "{analyzer} · {scope}",
+      "fields": [
+        {
+          "id": "scope",
+          "label": "作用域",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "analyzer",
+          "label": "分析器",
+          "kind": "text"
+        },
+        {
+          "id": "files",
+          "label": "文件数",
+          "kind": "int"
+        },
+        {
+          "id": "with_exif",
+          "label": "含 EXIF",
+          "kind": "int"
+        },
+        {
+          "id": "with_gps",
+          "label": "含 GPS",
+          "kind": "int"
+        },
+        {
+          "id": "without_gps",
+          "label": "无 GPS",
+          "kind": "int"
+        },
+        {
+          "id": "without_exif",
+          "label": "无 EXIF",
+          "kind": "int"
+        },
+        {
+          "id": "failed",
+          "label": "解析失败",
+          "kind": "int"
+        },
+        {
+          "id": "excluded_non_image",
+          "label": "非图片/扩展名不符跳过",
+          "kind": "int"
+        },
+        {
+          "id": "skipped_beyond_limit",
+          "label": "超出上限未解析",
+          "kind": "int"
+        },
+        {
+          "id": "reasons",
+          "label": "失败原因（代码×次数）",
+          "kind": "list"
+        },
+        {
+          "id": "text",
+          "label": "汇总说明",
+          "kind": "text"
+        }
+      ]
+    }
+  ],
+  "schema_hash": "fnv1a64:6c148622508158dd"
+}

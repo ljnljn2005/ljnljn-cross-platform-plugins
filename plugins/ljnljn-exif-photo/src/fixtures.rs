@@ -208,17 +208,17 @@ impl ExifSample {
         let directories_end = cursor;
         // Value area payloads first, so directory slots can point at them.
         let mut values: Vec<u8> = Vec::new();
-        let payload_offset = |entry: &Entry, layout: &mut Layout, values: &mut Vec<u8>|
-         -> Option<u32> {
-            let payload = entry.payload(little);
-            if payload.len() <= 4 {
-                return None;
-            }
-            let offset = directories_end + values.len() as u32;
-            layout.separate_values.insert(entry.tag(), offset);
-            values.extend_from_slice(&payload);
-            Some(offset)
-        };
+        let payload_offset =
+            |entry: &Entry, layout: &mut Layout, values: &mut Vec<u8>| -> Option<u32> {
+                let payload = entry.payload(little);
+                if payload.len() <= 4 {
+                    return None;
+                }
+                let offset = directories_end + values.len() as u32;
+                layout.separate_values.insert(entry.tag(), offset);
+                values.extend_from_slice(&payload);
+                Some(offset)
+            };
         let mut ifd0_blocks: Vec<(u16, u16, u32, Vec<u8>, Option<u32>)> = Vec::new();
         for entry in &self.ifd0 {
             let value_offset = payload_offset(entry, &mut layout, &mut values);
@@ -245,34 +245,33 @@ impl ExifSample {
         write_u16(&mut tiff, 2, 42, little);
         write_u32(&mut tiff, 4, ifd0_offset, little);
 
-        let write_directory =
-            |tiff: &mut Vec<u8>,
-             offset: u32,
-             blocks: &[(u16, u16, u32, Vec<u8>, Option<u32>)],
-             next: u32,
-             layout: &mut Layout| {
-                let start = offset as usize;
-                write_u16(tiff, start, blocks.len() as u16, little);
-                let mut slot = start + 2;
-                for (tag, type_id, count, payload, value_offset) in blocks {
-                    write_u16(tiff, slot, *tag, little);
-                    write_u16(tiff, slot + 2, *type_id, little);
-                    write_u32(tiff, slot + 4, *count, little);
-                    match value_offset {
-                        Some(value_offset) => {
-                            write_u32(tiff, slot + 8, *value_offset, little);
-                            layout.value_offsets.insert(*tag, *value_offset);
-                        }
-                        None => {
-                            let copy = payload.len().min(4);
-                            tiff[slot + 8..slot + 8 + copy].copy_from_slice(&payload[..copy]);
-                            layout.value_offsets.insert(*tag, (slot + 8) as u32);
-                        }
+        let write_directory = |tiff: &mut Vec<u8>,
+                               offset: u32,
+                               blocks: &[(u16, u16, u32, Vec<u8>, Option<u32>)],
+                               next: u32,
+                               layout: &mut Layout| {
+            let start = offset as usize;
+            write_u16(tiff, start, blocks.len() as u16, little);
+            let mut slot = start + 2;
+            for (tag, type_id, count, payload, value_offset) in blocks {
+                write_u16(tiff, slot, *tag, little);
+                write_u16(tiff, slot + 2, *type_id, little);
+                write_u32(tiff, slot + 4, *count, little);
+                match value_offset {
+                    Some(value_offset) => {
+                        write_u32(tiff, slot + 8, *value_offset, little);
+                        layout.value_offsets.insert(*tag, *value_offset);
                     }
-                    slot += 12;
+                    None => {
+                        let copy = payload.len().min(4);
+                        tiff[slot + 8..slot + 8 + copy].copy_from_slice(&payload[..copy]);
+                        layout.value_offsets.insert(*tag, (slot + 8) as u32);
+                    }
                 }
-                write_u32(tiff, slot, next, little);
-            };
+                slot += 12;
+            }
+            write_u32(tiff, slot, next, little);
+        };
         // IFD1 chain target.
         let ifd1_next = match (&self.ifd1, layout.ifd1) {
             (Some(_), Some(offset)) => offset,
@@ -478,4 +477,3 @@ pub fn crc32(data: &[u8]) -> u32 {
     }
     !crc
 }
-

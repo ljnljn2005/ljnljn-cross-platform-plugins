@@ -6,13 +6,10 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use crate::detect::{
-    family_hits, family_summary, family_totals, merge_hits, scan_windows, RequestRecord,
-    ScanResult,
+    family_hits, family_summary, family_totals, merge_hits, scan_windows, RequestRecord, ScanResult,
 };
 use crate::logline::{normalize_param_name, parse_query, parse_timestamp, split_target};
-use crate::model::{
-    truncate_chars, Config, Family, FamilyHits, LogEntry, TimestampParts,
-};
+use crate::model::{truncate_chars, Config, Family, FamilyHits, LogEntry, TimestampParts};
 
 /// Encoding chosen for one file after BOM/UTF-8 validation.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -54,7 +51,11 @@ pub fn decode_log(bytes: &[u8]) -> (String, Encoding, usize) {
         Ok(text) => return (text.to_owned(), Encoding::Utf8, 0),
         Err(error) if error.error_len().is_none() => {
             // Complete but unterminated final sequence: still UTF-8.
-            return (String::from_utf8_lossy(bytes).into_owned(), Encoding::Utf8, 1);
+            return (
+                String::from_utf8_lossy(bytes).into_owned(),
+                Encoding::Utf8,
+                1,
+            );
         }
         Err(_) => {}
     }
@@ -105,6 +106,12 @@ pub struct ParamAggregate {
     /// Offsets of first/last occurrence on the log's own time axis.
     pub first_offset: Option<i64>,
     pub last_offset: Option<i64>,
+    /// Smallest / largest 1-based line number that carried the parameter.
+    pub line_start: u64,
+    pub line_end: u64,
+    /// Byte range in the decoded file that covers those lines (end exclusive).
+    pub byte_start: u64,
+    pub byte_end: u64,
     /// `(year, month)` pairs, so a year boundary is reported, not hidden.
     pub spans_years: BTreeSet<(i64, u32)>,
     pub distinct_client_ips: u64,
@@ -142,6 +149,10 @@ pub struct SampleLine {
     pub line_no: u64,
     /// Line truncated to `sample_line_chars`.
     pub text: String,
+    /// Byte offset of the raw line in the decoded document.
+    pub offset: u64,
+    /// Raw line length in bytes (including the line terminator).
+    pub length: u64,
     /// Bound timestamp as written.
     pub raw_time: String,
     pub status: Option<u16>,
@@ -162,6 +173,10 @@ impl ParamAggregate {
             last_seen: None,
             first_offset: None,
             last_offset: None,
+            line_start: 0,
+            line_end: 0,
+            byte_start: 0,
+            byte_end: 0,
             spans_years: BTreeSet::new(),
             distinct_client_ips: 0,
             status_distribution: Vec::new(),
@@ -249,6 +264,8 @@ pub struct Aggregator<'a> {
     groups: BTreeMap<String, BTreeMap<String, ParamAggregate>>,
     first_offset: Option<i64>,
     last_offset: Option<i64>,
+    first_nanos: Option<u128>,
+    last_nanos: Option<u128>,
     entries: u64,
 }
 
@@ -261,12 +278,14 @@ impl<'a> Aggregator<'a> {
             groups: BTreeMap::new(),
             first_offset: None,
             last_offset: None,
+            first_nanos: None,
+            last_nanos: None,
             entries: 0,
         }
     }
 
     /// Records one recognised line and the sample text it came from.
-    pub fn push(&mut self, entry: &LogEntry, sample: &str) {
+    pub fn push(&mut self, entry: &LogEntry, sample: &str, offset: u64, length: u64) {
         self.document.parsed_lines += 1;
         *self
             .document
@@ -281,8 +300,17 @@ impl<'a> Aggregator<'a> {
         let parts = parse_timestamp(&entry.time);
         if let Some(parts) = &parts {
             let seconds = parts.linear_seconds();
-            self.first_offset = Some(self.first_offset.map_or(seconds, |low| low.min(seconds)));
-            self.last_offset = Some(self.last_offset.map_or(seconds, |high| high.max(seconds)));
+            let nanos = seconds as u128 * 1_000_000_000 + parts.nanos as u128;
+            if self.first_nanos.map_or(true, |current| nanos < current) {
+                self.first_nanos = Some(nanos);
+                self.first_offset = Some(seconds);
+                self.document.first_time = Some(entry.time.clone());
+            }
+            if self.last_nanos.map_or(true, |current| nanos > current) {
+                self.last_nanos = Some(nanos);
+                self.last_offset = Some(seconds);
+                self.document.last_time = Some(entry.time.clone());
+            }
             self.document.spans_years.insert((parts.year, parts.month));
         }
         let (path, query) = split_target(&entry.target);
@@ -304,10 +332,7 @@ impl<'a> Aggregator<'a> {
             *index += 1;
             let group = self.groups.entry(path.clone()).or_default();
             if !group.contains_key(&name) {
-                group.insert(
-                    name.clone(),
-                    ParamAggregate::new(&path, &name, self.config),
-                );
+                group.insert(name.clone(), ParamAggregate::new(&path, &name, self.config));
             }
             let Some(param) = group.get_mut(&name) else {
                 continue;
@@ -321,6 +346,8 @@ impl<'a> Aggregator<'a> {
                 &value,
                 position,
                 sample,
+                offset,
+                length,
             );
             self.entries += 1;
         }
@@ -337,6 +364,8 @@ fn add_occurrence(
     value: &[u8],
     position: usize,
     sample: &str,
+    offset: u64,
+    length: u64,
 ) {
     // Every occurrence counts; statistics that must be per-request are taken
     // from the first occurrence only (the IP set and record vector would
@@ -351,10 +380,22 @@ fn add_occurrence(
     if first_occurrence {
         param.ips.insert(entry.ip.clone());
         param.distinct_client_ips = param.ips.len() as u64;
+        if param.line_start == 0 || entry.line_no < param.line_start {
+            param.line_start = entry.line_no;
+            param.byte_start = offset;
+        }
+        if entry.line_no > param.line_end {
+            param.line_end = entry.line_no;
+        }
+        if offset + length > param.byte_end {
+            param.byte_end = offset + length;
+        }
         if param.sample_lines.len() < config.samples_per_param {
             param.sample_lines.push(SampleLine {
                 line_no: entry.line_no,
                 text: truncate_chars(sample, config.sample_line_chars),
+                offset,
+                length,
                 raw_time: entry.time.clone(),
                 status: entry.status,
                 method: entry.method.clone(),
@@ -382,7 +423,9 @@ fn add_occurrence(
         Some(parts) => {
             let seconds = parts.linear_seconds();
             let nanos = seconds as u128 * 1_000_000_000 + parts.nanos as u128;
-            let first = param.window_first_nanos.map_or(true, |current| nanos < current);
+            let first = param
+                .window_first_nanos
+                .map_or(true, |current| nanos < current);
             if first {
                 param.window_first_time = Some(entry.time.clone());
                 param.window_first_nanos = Some(nanos);
@@ -523,7 +566,12 @@ fn confidence(config: &Config, scan: &ScanResult, families_hit: usize, total_hit
     (score.clamp(0.0, 1.0) * 100.0).round() / 100.0
 }
 
-fn verdict(config: &Config, param: &ParamAggregate, families_hit: usize, total_hits: u64) -> String {
+fn verdict(
+    config: &Config,
+    param: &ParamAggregate,
+    families_hit: usize,
+    total_hits: u64,
+) -> String {
     let best = &param.window.best;
     let families = family_summary(&best.window_families);
     if param.suspicious {
@@ -550,7 +598,10 @@ fn verdict(config: &Config, param: &ParamAggregate, families_hit: usize, total_h
             reasons.push(format!("窗口时间区间原样保留：[{first}] → [{last}]"));
         }
         if param.undated > 0 {
-            reasons.push(format!("{} 条请求时间戳不可解析，未参与窗口判定", param.undated));
+            reasons.push(format!(
+                "{} 条请求时间戳不可解析，未参与窗口判定",
+                param.undated
+            ));
         }
         reasons.push(format!(
             "解码后载荷样例：{}；匹配在 %XX 解码后进行，原文另行保留",
@@ -599,16 +650,17 @@ pub struct Finished {
     pub document: DocumentStats,
     pub groups: Vec<Group>,
     pub suspicion_count: usize,
+    #[allow(dead_code)]
     pub entries: u64,
+    #[allow(dead_code)]
     pub first_offset: Option<i64>,
+    #[allow(dead_code)]
     pub last_offset: Option<i64>,
 }
 
 impl Finished {
     pub fn all_params(&self) -> impl Iterator<Item = &ParamAggregate> {
-        self.groups
-            .iter()
-            .flat_map(|group| group.params.values())
+        self.groups.iter().flat_map(|group| group.params.values())
     }
 
     /// All params with `path`/`param` resolved, sorted by request count.
@@ -626,15 +678,18 @@ impl Finished {
 
     /// Candidates sorted by confidence then request count.
     pub fn suspicious(&self) -> Vec<&ParamAggregate> {
-        let mut candidates: Vec<&ParamAggregate> = self
-            .all_params()
-            .filter(|param| param.suspicious)
-            .collect();
+        let mut candidates: Vec<&ParamAggregate> =
+            self.all_params().filter(|param| param.suspicious).collect();
         candidates.sort_by(|a, b| {
             b.confidence
                 .partial_cmp(&a.confidence)
                 .unwrap_or(std::cmp::Ordering::Equal)
-                .then(b.window.best.window_requests.cmp(&a.window.best.window_requests))
+                .then(
+                    b.window
+                        .best
+                        .window_requests
+                        .cmp(&a.window.best.window_requests),
+                )
                 .then(a.path.cmp(&b.path))
                 .then(a.param.cmp(&b.param))
         });
@@ -642,6 +697,7 @@ impl Finished {
     }
 
     /// Distinct raw time strings of the whole file (from first/last offsets).
+    #[allow(dead_code)]
     pub fn documents_time_span(&self) -> (Option<i64>, Option<i64>) {
         (self.first_offset, self.last_offset)
     }
@@ -652,7 +708,8 @@ pub fn families_as_pairs(hits: &FamilyHits) -> Vec<(Family, u64)> {
     crate::detect::family_entries(hits)
 }
 
-/// Convenience: parses and aggregates a whole document.
+/// Convenience: parses and aggregates a whole document. `text` must be the
+/// decoded document; line offsets refer to its UTF-8 bytes.
 pub fn analyze_text(
     text: &str,
     config: &Config,
@@ -663,14 +720,18 @@ pub fn analyze_text(
     if let Some(note) = truncation {
         aggregator.notes.push(note.to_owned());
     }
-    let lines = split_log_lines(text);
-    aggregator.document.total_lines = lines.len() as u64;
-    for (index, line) in lines.iter().enumerate() {
+    aggregator.document.total_lines = split_log_lines(text).len() as u64;
+    let mut offset = 0_u64;
+    for (index, raw) in text.split_inclusive('\n').enumerate() {
         let line_no = index as u64 + 1;
+        let length = raw.len() as u64;
+        let line = raw.strip_suffix('\n').unwrap_or(raw);
+        let line = line.strip_suffix('\r').unwrap_or(line);
         match parser.parse(line_no, line) {
-            Ok(entry) => aggregator.push(&entry, line),
+            Ok(entry) => aggregator.push(&entry, line, offset, length),
             Err((reason, _)) => aggregator.reject(line_no, reason.as_str(), line),
         }
+        offset += length;
     }
     aggregator.finish()
 }

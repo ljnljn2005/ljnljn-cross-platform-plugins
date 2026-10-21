@@ -74,10 +74,7 @@ pub fn parse_file(path: &str, bytes: &[u8]) -> Outcome {
         };
     }
     if bytes.is_empty() {
-        return Outcome::Rejected(ContainerError::new(
-            exif::reason::TRUNCATED,
-            "文件为空",
-        ));
+        return Outcome::Rejected(ContainerError::new(exif::reason::TRUNCATED, "文件为空"));
     }
     let mut record = PhotoRecord {
         path: path.to_owned(),
@@ -138,8 +135,12 @@ pub fn parse_file(path: &str, bytes: &[u8]) -> Outcome {
     match &exif {
         Some(block) => {
             record.exif_present = true;
-            record.fields = fields::interpret(&block.block, block.carrier, u64::from(block.tiff_offset));
-            record.fields.skipped.extend(record.skipped_exif.iter().cloned());
+            record.fields =
+                fields::interpret(&block.block, block.carrier, u64::from(block.tiff_offset));
+            record
+                .fields
+                .skipped
+                .extend(record.skipped_exif.iter().cloned());
             record.fields.png_dimensions = png_dimensions;
             record.exif_block = Some(block.clone());
         }
@@ -151,12 +152,15 @@ pub fn parse_file(path: &str, bytes: &[u8]) -> Outcome {
             } else {
                 record.reason = "heif_not_parsed".to_owned();
                 record.reason_text =
-                    "HEIC/HEIF 容器内 EXIF 未解析（本期只做格式识别，见 README 未覆盖部分）".to_owned();
+                    "HEIC/HEIF 容器内 EXIF 未解析（本期只做格式识别，见 README 未覆盖部分）"
+                        .to_owned();
             }
         }
     }
     if !record.fields.skipped.is_empty() {
-        record.warnings.extend(record.fields.skipped.iter().cloned());
+        record
+            .warnings
+            .extend(record.fields.skipped.iter().cloned());
     }
     if record.extension_mismatch {
         record.warnings.push(format!(
@@ -167,8 +171,10 @@ pub fn parse_file(path: &str, bytes: &[u8]) -> Outcome {
     }
     if let Some(xmp) = &record.xmp {
         if xmp.packet_truncated {
-            record.warnings
-                .push(format!("XMP 包长度 {} 超过 64 KiB，只解析前 64 KiB", xmp.length));
+            record.warnings.push(format!(
+                "XMP 包长度 {} 超过 64 KiB，只解析前 64 KiB",
+                xmp.length
+            ));
         }
     }
     Outcome::Photo(Box::new(record))

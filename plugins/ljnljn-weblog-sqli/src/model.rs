@@ -373,6 +373,7 @@ impl Family {
         }
     }
 
+    #[allow(dead_code)]
     pub fn index(self) -> usize {
         self as usize
     }
@@ -438,9 +439,18 @@ mod tests {
     #[test]
     fn civil_day_arithmetic_is_exact_across_years() {
         assert_eq!(days_from_civil(1970, 1, 1), 0);
-        assert_eq!(days_from_civil(2000, 3, 1) - days_from_civil(2000, 2, 29), 1);
-        assert_eq!(days_from_civil(2020, 1, 1) - days_from_civil(2019, 1, 1), 365);
-        assert_eq!(days_from_civil(2021, 1, 1) - days_from_civil(2020, 1, 1), 366);
+        assert_eq!(
+            days_from_civil(2000, 3, 1) - days_from_civil(2000, 2, 29),
+            1
+        );
+        assert_eq!(
+            days_from_civil(2020, 1, 1) - days_from_civil(2019, 1, 1),
+            365
+        );
+        assert_eq!(
+            days_from_civil(2021, 1, 1) - days_from_civil(2020, 1, 1),
+            366
+        );
         assert_eq!(
             days_from_civil(2025, 1, 1) - days_from_civil(2024, 12, 31),
             1
