@@ -1,0 +1,119 @@
+{
+  "protocol": 2,
+  "plugin": "org.ljnljn.ileapp-aleapp-report",
+  "sdk": "0.2.0",
+  "analyzers": [
+    "report_files",
+    "report_system",
+    "report_evidence"
+  ],
+  "filesystems": [],
+  "records": [
+    {
+      "type": "profile.fact",
+      "label": "检材画像",
+      "title": "{key}",
+      "fields": [
+        {
+          "id": "key",
+          "label": "键",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "value",
+          "label": "值",
+          "kind": "json"
+        },
+        {
+          "id": "system",
+          "label": "系统",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "mobile.report.file",
+      "label": "移动终端报告文件",
+      "title": "{tool} / {module}",
+      "fields": [
+        {
+          "id": "path",
+          "label": "路径",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "tool",
+          "label": "工具",
+          "kind": "text"
+        },
+        {
+          "id": "module",
+          "label": "模块",
+          "kind": "text"
+        },
+        {
+          "id": "size",
+          "label": "大小",
+          "kind": "size"
+        },
+        {
+          "id": "row_count",
+          "label": "数据行数",
+          "kind": "int"
+        },
+        {
+          "id": "column_count",
+          "label": "列数",
+          "kind": "int"
+        },
+        {
+          "id": "status",
+          "label": "状态",
+          "kind": "text"
+        }
+      ]
+    },
+    {
+      "type": "mobile.report.row",
+      "label": "移动终端报告行",
+      "title": "{module} #{row_index}",
+      "fields": [
+        {
+          "id": "source",
+          "label": "来源文件",
+          "kind": "text",
+          "key": true
+        },
+        {
+          "id": "row_index",
+          "label": "行号",
+          "kind": "int",
+          "key": true
+        },
+        {
+          "id": "tool",
+          "label": "工具",
+          "kind": "text"
+        },
+        {
+          "id": "module",
+          "label": "模块",
+          "kind": "text"
+        },
+        {
+          "id": "columns",
+          "label": "列名",
+          "kind": "list"
+        },
+        {
+          "id": "values",
+          "label": "值",
+          "kind": "json"
+        }
+      ]
+    }
+  ],
+  "schema_hash": "fnv1a64:0c7c771a826eb66e"
+}

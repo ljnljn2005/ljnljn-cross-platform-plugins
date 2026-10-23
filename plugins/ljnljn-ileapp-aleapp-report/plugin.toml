@@ -1,0 +1,29 @@
+id = "org.ljnljn.ileapp-aleapp-report"
+name = "iLEAPP/ALEAPP 报告导入"
+version = "0.1.0"
+protocol = 2
+library = "ljnljn_ileapp_aleapp_report"
+memory = "512MiB"
+permissions = []
+
+[[analyzer]]
+id = "report_files"
+name = "iLEAPP/ALEAPP TSV 报告（单文件）"
+scope = "files"
+trigger = "manual"
+category = "mobile"
+extensions = ["tsv"]
+
+[[analyzer]]
+id = "report_system"
+name = "iLEAPP/ALEAPP 报告（系统）"
+scope = "system"
+trigger = "manual"
+category = "mobile"
+
+[[analyzer]]
+id = "report_evidence"
+name = "iLEAPP/ALEAPP 报告（检材）"
+scope = "evidence"
+trigger = "manual"
+category = "mobile"
