@@ -40,6 +40,8 @@ iLEAPP / ALEAPP 是 Python 工具，需要完整可写的解包目录，并会�
 - 模块名取 TSV 文件名（去掉 `.tsv`）。
 - 单个文件最多读取 128 MiB、输出 100,000 行；超出时
   `mobile.report.file.status = "truncated"` 并给出告警。
+- 短行用空值补齐到表头列数；长行保留全部值并标记
+  `status = "ragged"`、给出 `REPORT_STATUS` 告警，不静默截断。
 - 空报告输出 `status = "empty"`，不伪造数据行；找不到报告目录时告警
   `REPORT_NOT_FOUND`。
 

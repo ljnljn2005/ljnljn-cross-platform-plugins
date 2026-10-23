@@ -130,6 +130,35 @@ fn quoted_newlines_and_escaped_quotes_stay_in_one_row() {
 }
 
 #[test]
+fn ragged_rows_keep_extra_values_and_warn() {
+    let root = Root::new("ragged");
+    let path = root.write(
+        "iLEAPP_Report/_TSV Exports/Ragged.tsv",
+        "A\tB\tC\n1\t2\n1\t2\t3\t4\n",
+    );
+    let run = root.run_file(&path);
+
+    assert_eq!(run.count("mobile.report.row"), 2);
+    assert_eq!(
+        run.of_type("mobile.report.file")[0].text("status"),
+        Some("ragged")
+    );
+    let rows = run.of_type("mobile.report.row");
+    assert_eq!(
+        rows[0].get("values").and_then(Value::as_array).map(Vec::len),
+        Some(3)
+    );
+    assert_eq!(
+        rows[1].get("values").and_then(Value::as_array).map(Vec::len),
+        Some(4)
+    );
+    assert!(run
+        .warnings
+        .iter()
+        .any(|(code, _, _)| code == "REPORT_STATUS"));
+}
+
+#[test]
 fn evidence_scan_finds_both_tools_tsv_exports() {
     let root = fixture();
     let run = root.run_evidence();

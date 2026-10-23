@@ -230,11 +230,22 @@ fn parse_tsv(text: &str) -> (Vec<String>, Vec<Vec<String>>, &'static str) {
     if rows.is_empty() {
         return (columns, rows, "empty");
     }
-    // 数据行补齐/截断到表头宽度，保证每行与列名一一对应。
+    // 数据行补齐到表头宽度；多出的字段保留原值并标记 ragged，不能静默截断。
+    let mut ragged = false;
     for row in &mut rows {
-        row.resize(columns.len(), String::new());
+        if row.len() < columns.len() {
+            row.resize(columns.len(), String::new());
+        } else if row.len() > columns.len() {
+            ragged = true;
+        }
     }
-    let status = if truncated { "truncated" } else { "ok" };
+    let status = if truncated {
+        "truncated"
+    } else if ragged {
+        "ragged"
+    } else {
+        "ok"
+    };
     (columns, rows, status)
 }
 
